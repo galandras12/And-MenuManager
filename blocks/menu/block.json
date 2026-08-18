@@ -1,0 +1,35 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "and-menumanager/menu",
+	"version": "0.1",
+	"title": "And-MenuManager menü",
+	"category": "widgets",
+	"icon": "menu-alt3",
+	"description": "Egy And-MenuManager menü beillesztése – felső navigációba, oldalsávba vagy bárhová a tartalomban.",
+	"keywords": [ "menü", "navigáció", "menu", "navigation" ],
+	"textdomain": "and-menumanager",
+	"supports": {
+		"html": false,
+		"align": [ "wide", "full" ],
+		"spacing": {
+			"margin": true,
+			"padding": true
+		}
+	},
+	"attributes": {
+		"menuId": {
+			"type": "number",
+			"default": 0
+		},
+		"display": {
+			"type": "string",
+			"default": ""
+		},
+		"depth": {
+			"type": "number",
+			"default": 0
+		}
+	},
+	"editorScript": "amm-block-editor"
+}

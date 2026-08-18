@@ -1,0 +1,126 @@
+/**
+ * And-MenuManager – látogatói oldali alapstílus.
+ * Szándékosan visszafogott: a téma stílusát nem írja felül.
+ */
+
+.amm-menu {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.amm-menu .amm-submenu {
+	margin: 0;
+	padding: 0 0 0 14px;
+	list-style: none;
+}
+
+.amm-item {
+	position: relative;
+}
+
+.amm-link {
+	display: inline-block;
+	padding: 5px 0;
+	text-decoration: none;
+}
+
+.amm-item--current > .amm-link {
+	font-weight: 600;
+}
+
+.amm-item--current-ancestor > .amm-link {
+	font-weight: 500;
+}
+
+.amm-item--heading > .amm-link {
+	font-weight: 700;
+	text-transform: uppercase;
+	font-size: .85em;
+	letter-spacing: .04em;
+	opacity: .7;
+}
+
+.amm-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin-left: 4px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	cursor: pointer;
+	vertical-align: middle;
+}
+
+.amm-toggle__icon {
+	display: block;
+	width: 7px;
+	height: 7px;
+	border-right: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	transform: rotate(45deg);
+	transition: transform .16s ease;
+}
+
+.amm-toggle[aria-expanded="true"] .amm-toggle__icon {
+	transform: rotate(-135deg);
+}
+
+/* Összecsukható (harmonika) mód */
+.amm-menu--collapsible .amm-submenu[hidden],
+.amm-menu--accordion .amm-submenu[hidden] {
+	display: none;
+}
+
+/* Vízszintes menü lenyílóval */
+.amm-menu--horizontal {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 18px;
+	align-items: center;
+}
+
+.amm-menu--horizontal > .amm-item > .amm-submenu {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: 50;
+	min-width: 200px;
+	padding: 8px 12px;
+	background: #fff;
+	border: 1px solid rgba(0, 0, 0, .1);
+	border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, .1);
+}
+
+.amm-menu--horizontal .amm-submenu .amm-submenu {
+	position: static;
+	box-shadow: none;
+	border: 0;
+	padding: 0 0 0 12px;
+}
+
+.amm-menu--horizontal > .amm-item > .amm-submenu[hidden] {
+	display: none;
+}
+
+/* Oszlopos elrendezés (nagy menükhöz) */
+.amm-menu--columns {
+	column-width: 220px;
+	column-gap: 28px;
+}
+
+.amm-menu--columns > .amm-item {
+	break-inside: avoid;
+	margin-bottom: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+	.amm-menu--horizontal > .amm-item > .amm-submenu {
+		background: #1b1f24;
+		border-color: rgba(255, 255, 255, .12);
+	}
+}
