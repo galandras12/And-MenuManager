@@ -1,1 +1,169 @@
 # And-MenuManager
+
+WordPress admin plugin **több száz / több ezer oldalas** oldalstruktúrák navigációs menüinek kezelésére.
+
+A beépített WordPress menükezelő minden menüpontot külön bejegyzésként (`nav_menu_item`) tárol, és a szerkesztőben egyszerre tölti be az összes oldalt. Néhány száz aloldal fölött ez belassul, lefagy, vagy időtúllépéssel elszáll. Az And-MenuManager ezt a problémát az alapoknál oldja meg.
+
+---
+
+## Mitől gyors?
+
+| | Beépített WordPress menü | And-MenuManager |
+|---|---|---|
+| Tárolás | minden menüpont = 1 bejegyzés + 8-10 metaadat | menünként néhány **szabály-elem** |
+| 800 aloldal a menüben | ~800 bejegyzés + ~7000 meta sor | **1 sor** (egy szabály: „ez az oldal + minden aloldala”) |
+| Szerkesztő betöltése | az összes oldal egyszerre, teljes objektumként | csak a szabály-elemek, az aloldalak igény szerint, lapozva |
+| Új aloldal | kézzel hozzá kell adni | **magától megjelenik** |
+| Oldallista lekérdezése | teljes `WP_Post` objektumok | egyetlen szűk oszloplistás lekérdezés, gyorsítótárazva |
+
+Három tervezési döntés adja a sebességet:
+
+1. **Szabályalapú menü.** A menü nem tárolja az aloldalakat, hanem egy szabályt tárol róluk. A tényleges fa megjelenítéskor áll össze, és gyorsítótárba kerül.
+2. **Oldalhierarchia-index.** Egyetlen lekérdezés hozza az összes oldal azonosítóját, szülőjét, címét és slugját (nem teljes bejegyzés-objektumokat), ebből épül a fa. Ez memóriában marad, így a permalinkek előállítása sem indít lekérdezéseket. Nagyon nagy oldalszám fölött (alapból 25 000) automatikusan „közvetlen” módra vált, ahol csak az éppen kért szint kerül lekérdezésre.
+3. **A felület soha nem rajzol ki több ezer sort.** A fában csak a szabály-elemek látszanak; az aloldalak kinyitásra, lapozva töltődnek be.
+
+---
+
+## Funkciók
+
+### Menükezelés
+- Korlátlan számú menü, kereséssel és lapozással
+- Drag & drop rendezés tetszőleges mélységben, körkörös hivatkozás elleni védelemmel
+- Billentyűzetes mozgatás is (↑ ↓ → ←) az akadálymentességért
+- Oldal, bejegyzés, egyedi link, archívum és nem kattintható címsor mint menüelem
+- Menü másolása, exportálás / importálás JSON-ben
+
+### Automatizmusok
+- **Aloldalak automatikus hozzáadása** – bekapcsolható elemenként; az új aloldalak azonnal megjelennek, kézi beavatkozás nélkül
+- **Automatikus mélységkorlát** elemenként és menü szinten
+- **Automatikus rendezés**: oldal sorrend (`menu_order`), cím, slug vagy dátum szerint
+- **Új gyökér-oldal automatikus felvétele** a kiválasztott menü(k)be
+- **Árva elemek takarítása**: törölt oldal menüpontja magától eltűnik
+- **Élő címek**: az oldal átnevezésekor a menü is frissül (kivéve, ahol felülírtad a címkét)
+- **Időzített megjelenés**: menüpontonként kezdő és záró időpont
+- **Szerepkör alapú láthatóság**: menüpont csak bejelentkezve / kijelentkezve / adott szerepköröknek
+- **Napi karbantartás**: állapotjelentés és gyorsítótár-előmelegítés cronból
+
+### Szülő oldalak és kizárások
+- Bármely oldal felvehető menügyökérként (a „Tartalom hozzáadása” panelről, kereséssel vagy lefúrással)
+- Az automatikusan megjelenő aloldalak egyenként **elrejthetők** (kizárás) és visszakapcsolhatók
+- Az automatikus aloldal **rögzíthető** külön menüelemként, ha át kell nevezni vagy sorba rendezni
+- A menü élő előnézete egy kattintással
+
+### Beillesztés
+| Mód | Használat |
+|---|---|
+| Sablonpozíció | Beállítások → Sablonpozíciók: a téma menühelyére (pl. felső navigáció) rendelve, **a téma módosítása nélkül** |
+| Blokk | „And-MenuManager menü” blokk a szerkesztőben (élő előnézettel) |
+| Widget | „And-MenuManager menü” widget az oldalsávba |
+| Shortcode | `[amm_menu id="fomenu" style="horizontal" depth="2"]` |
+| Sablonfüggvény | `<?php amm_menu( 'fomenu' ); ?>` |
+
+Megjelenési módok: függőleges, lenyíló (harmonika), vízszintes (lenyíló almenükkel), oszlopos (nagy menükhöz).
+
+### Hozzáférés
+Két saját jogosultság, szerepkörönként külön bekapcsolható a Beállítások → Hozzáférés mátrixban:
+
+- `amm_manage_menus` – menük szerkesztése
+- `amm_manage_settings` – beállítások és hozzáférés kezelése
+
+Az adminisztrátor jogosultsága nem vehető el, így nem lehet kizárni magad a felületről.
+
+---
+
+## Telepítés
+
+1. Másold a plugin mappáját a `wp-content/plugins/and-menumanager` könyvtárba.
+2. Aktiváld a WordPress bővítménykezelőjében.
+3. Nyisd meg a bal oldali **Menükezelő** menüpontot.
+
+Aktiváláskor létrejön két saját tábla (`{prefix}amm_menus`, `{prefix}amm_items`), és az adminisztrátor megkapja a jogosultságokat.
+
+### Átállás a meglévő menükről
+A **Menükezelő → WordPress menük átemelése** gomb a beépített menüket másolatként áthozza, a sablonpozíció-hozzárendelésekkel együtt. Az eredeti WordPress menük érintetlenek maradnak, így bármikor visszaállhatsz.
+
+---
+
+## Első lépések nagy oldalszámnál
+
+1. Hozz létre egy menüt (**Új menü**).
+2. A jobb oldali **Tartalom hozzáadása** panelen keresd meg a fő szülő oldalt, és add hozzá (`+`).
+3. A fában az elem alatt megjelenik az *„Aloldalak automatikusan”* jelölés a darabszámmal – ez egyetlen szabály, nem több száz sor.
+4. Az **Aloldalak kezelése** gombbal nyisd ki a listát, és rejtsd el, amit nem szeretnél megjeleníteni.
+5. A **Menü** fülön állítsd be a megjelenést és a mélységkorlátot, majd a **Beállítások → Sablonpozíciók** alatt rendeld a téma menühelyéhez.
+
+---
+
+## WP-CLI
+
+```bash
+wp amm list-menus        # menük és méretük
+wp amm flush             # gyorsítótár ürítése
+wp amm prewarm           # oldalindex előmelegítése
+wp amm import-core       # beépített WordPress menük átemelése
+wp amm purge-orphans     # árva menüelemek törlése
+wp amm export --file=menuk.json
+```
+
+---
+
+## Fejlesztőknek
+
+### Sablonfüggvények
+```php
+amm_menu( 'fomenu', array( 'style' => 'horizontal', 'depth' => 2 ) ); // kiírja
+$html = amm_get_menu( 'fomenu' );                                     // visszaadja
+$tree = amm_get_menu_tree( 'fomenu' );                                // nyers fa tömbként
+amm_menu_exists( 'fomenu' );
+```
+
+### Hookok
+```php
+apply_filters( 'amm_resolved_tree', $tree, $menu );        // a feloldott fa
+apply_filters( 'amm_menu_html', $html, $menu, $args );     // a kész HTML
+apply_filters( 'amm_item_visible', $visible, $item );      // egyedi láthatósági szabály
+apply_filters( 'amm_post_statuses', $statuses );           // figyelembe vett státuszok
+apply_filters( 'amm_cache_context_parts', $parts );        // gyorsítótár-kulcs (pl. többnyelvűséghez)
+
+do_action( 'amm_menu_created', $menu_id, $data );
+do_action( 'amm_menu_updated', $menu_id, $data );
+do_action( 'amm_menu_deleted', $menu_id );
+do_action( 'amm_auto_added_item', $menu_id, $post_id );
+```
+
+### REST API
+Névtér: `/wp-json/and-menumanager/v1` – `menus`, `menus/{id}/tree`, `menus/{id}/items`, `menus/{id}/reorder`, `menus/{id}/exclusions`, `objects`, `settings`, `roles`, `tools/{action}`, `health`, `export`, `import`.
+
+### Felépítés
+```
+and-menumanager.php          bootstrap, autoloader
+includes/
+  class-amm-plugin.php       komponensek összefűzése
+  class-amm-installer.php    táblák, verziókezelés
+  class-amm-pages.php        oldalhierarchia-index (a sebesség lelke)
+  class-amm-tree.php         szabályok feloldása fává
+  class-amm-renderer.php     HTML kimenet
+  class-amm-cache.php        verziószámos gyorsítótár
+  class-amm-automations.php  tartalomváltozásra reagáló automatizmusok
+  class-amm-rest.php         REST végpontok
+  class-amm-admin.php        admin felület betöltése
+  class-amm-importer.php     import / export / átállás
+  class-amm-cli.php          WP-CLI parancsok
+assets/                      admin és látogatói oldali CSS + JS (build lépés nélkül)
+blocks/menu/                 Gutenberg blokk
+```
+
+---
+
+## Gyorsítótár
+
+Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; egyébként transient). Az érvénytelenítés verziószám-léptetéssel történik, így soha nem kell több ezer kulcsot törölni. A cache automatikusan ürül, ha egy oldal címe, slugja, szülője, sorrendje vagy státusza megváltozik – más mentések nem indítanak felesleges újraépítést.
+
+## Követelmények
+
+- WordPress 5.8+
+- PHP 7.4+
+
+## Licenc
+
+GPL-2.0-or-later
