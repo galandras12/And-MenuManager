@@ -4,7 +4,7 @@ Tags: menu, navigation, menük, navigáció, performance
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.5.2
+Stable tag: 0.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ Ha a szülő oldalon be van kapcsolva az automatikus aloldal-kezelés, az új ol
 Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában; e fölött automatikusan szintenkénti lekérdezésre vált. A küszöb a beállításokban módosítható.
 
 == Changelog ==
+
+= 0.5.3 =
+* Javítva: a sablonpozícióhoz rendelt menü szétesett a témában, mert saját HTML-osztályokat és egy extra nyitógombot adott ki. A menü mostantól a WordPress beépített menüjével azonos felépítésben jelenik meg (menu-item, sub-menu, menu-item-has-children, current-menu-item), így a téma stílusai és szkriptjei változatlanul működnek.
+* A shortcode is kérheti ezt a kimenetet: [amm_menu id="fomenu" compat="1"].
 
 = 0.5.2 =
 * Javítva: a sablonpozícióhoz (pl. „Elsődleges menü”) rendelt menü kétszer jelent meg a látogatói oldalon. A plugin kiírta a menüt, majd a WordPress a visszaadott értéket még egyszer kiírta.

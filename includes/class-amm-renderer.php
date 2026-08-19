@@ -25,6 +25,7 @@ class AMM_Renderer {
 			'container_id'    => '',
 			'menu_class'      => '',
 			'menu_id'         => '',
+			'compat'          => false,
 			'depth'           => 0,
 			'toggles'         => true,
 			'aria_label'      => '',
@@ -56,18 +57,37 @@ class AMM_Renderer {
 
 		$style = $args['style'] ? $args['style'] : $record['settings']['style'];
 
-		$classes = array( 'amm-menu', 'amm-menu--' . sanitize_html_class( $style ) );
+		if ( $args['compat'] ) {
+			// Téma-kompatibilis mód: a téma saját osztályai maradnak, a
+			// sajátjainkat nem tesszük hozzá, hogy a téma CSS-e és
+			// JavaScriptje pontosan úgy működjön, mint a beépített menüvel.
+			$classes = array();
 
-		if ( $record['settings']['css_class'] ) {
-			$classes = array_merge( $classes, preg_split( '/\s+/', $record['settings']['css_class'] ) );
-		}
+			if ( $args['menu_class'] ) {
+				$classes = preg_split( '/\s+/', $args['menu_class'] );
+			}
 
-		if ( $args['menu_class'] ) {
-			$classes = array_merge( $classes, preg_split( '/\s+/', $args['menu_class'] ) );
-		}
+			if ( $record['settings']['css_class'] ) {
+				$classes = array_merge( $classes, preg_split( '/\s+/', $record['settings']['css_class'] ) );
+			}
 
-		if ( $record['settings']['collapse_subs'] ) {
-			$classes[] = 'amm-menu--collapsible';
+			if ( empty( $classes ) ) {
+				$classes = array( 'menu' );
+			}
+		} else {
+			$classes = array( 'amm-menu', 'amm-menu--' . sanitize_html_class( $style ) );
+
+			if ( $record['settings']['css_class'] ) {
+				$classes = array_merge( $classes, preg_split( '/\s+/', $record['settings']['css_class'] ) );
+			}
+
+			if ( $args['menu_class'] ) {
+				$classes = array_merge( $classes, preg_split( '/\s+/', $args['menu_class'] ) );
+			}
+
+			if ( $record['settings']['collapse_subs'] ) {
+				$classes[] = 'amm-menu--collapsible';
+			}
 		}
 
 		$classes = array_values( array_unique( array_filter( array_map( 'sanitize_html_class', $classes ) ) ) );
@@ -202,7 +222,14 @@ class AMM_Renderer {
 			return '';
 		}
 
-		$list_class = 1 === $depth ? implode( ' ', $classes ) : 'amm-submenu amm-submenu--level-' . (int) $depth;
+		if ( 1 === $depth ) {
+			$list_class = implode( ' ', $classes );
+		} elseif ( $args['compat'] ) {
+			$list_class = 'sub-menu';
+		} else {
+			$list_class = 'amm-submenu amm-submenu--level-' . (int) $depth;
+		}
+
 		$html       = sprintf( '<ul class="%s">', esc_attr( $list_class ) );
 
 		foreach ( $nodes as $node ) {
@@ -215,6 +242,80 @@ class AMM_Renderer {
 	}
 
 	/**
+	 * A WordPress beépített menüjével egyező osztálylista.
+	 *
+	 * A témák CSS-e és JavaScriptje ezekre épül (menu-item,
+	 * menu-item-has-children, current-menu-item, sub-menu), ezért
+	 * sablonpozíción ezeket adjuk ki a sajátjaink helyett.
+	 *
+	 * @param array $node         Csomópont.
+	 * @param array $current      Aktuális kontextus.
+	 * @param bool  $is_current   Ez az aktuális oldal?
+	 * @param bool  $is_ancestor  Az aktuális oldal őse?
+	 * @param bool  $has_children Van-e almenüje?
+	 * @return array
+	 */
+	private static function compat_classes( $node, $current, $is_current, $is_ancestor, $has_children ) {
+		$classes = array( 'menu-item' );
+
+		switch ( $node['type'] ) {
+			case 'post_type':
+				$classes[] = 'menu-item-type-post_type';
+				$classes[] = 'menu-item-object-' . $node['object_type'];
+				break;
+
+			case 'taxonomy':
+				$classes[] = 'menu-item-type-taxonomy';
+				$classes[] = 'menu-item-object-' . $node['object_type'];
+				break;
+
+			case 'archive':
+				$classes[] = 'menu-item-type-post_type_archive';
+				$classes[] = 'menu-item-object-' . $node['object_type'];
+				break;
+
+			default:
+				$classes[] = 'menu-item-type-custom';
+				$classes[] = 'menu-item-object-custom';
+				break;
+		}
+
+		if ( $node['object_id'] ) {
+			$classes[] = 'menu-item-' . (int) $node['object_id'];
+		}
+
+		if ( $has_children ) {
+			$classes[] = 'menu-item-has-children';
+		}
+
+		if ( $is_current ) {
+			$classes[] = 'current-menu-item';
+			$classes[] = 'current_page_item';
+		} elseif ( $is_ancestor ) {
+			$classes[] = 'current-menu-ancestor';
+			$classes[] = 'current_page_ancestor';
+
+			// Közvetlen szülő-e az aktuális oldalé?
+			foreach ( $node['children'] as $child ) {
+				if ( ! empty( $child['object_id'] ) && $child['object_id'] === $current['id'] ) {
+					$classes[] = 'current-menu-parent';
+					$classes[] = 'current_page_parent';
+					break;
+				}
+			}
+		}
+
+		// A felhasználó saját CSS osztályai megmaradnak, a sajátjaink nem.
+		foreach ( $node['classes'] as $class ) {
+			if ( 0 !== strpos( $class, 'amm-' ) ) {
+				$classes[] = $class;
+			}
+		}
+
+		return $classes;
+	}
+
+	/**
 	 * Egy csomópont kirajzolása.
 	 *
 	 * @param array $node    Csomópont.
@@ -224,23 +325,34 @@ class AMM_Renderer {
 	 * @return string
 	 */
 	private static function render_node( $node, $args, $current, $depth ) {
-		$classes = array_merge( array( 'amm-item', 'amm-item--depth-' . (int) $depth ), $node['classes'] );
+		$compat     = ! empty( $args['compat'] );
 		$is_current = false;
+		$is_ancestor = false;
 
 		if ( $node['object_id'] && $node['object_id'] === $current['id'] ) {
-			$classes[]  = 'amm-item--current';
 			$is_current = true;
 		} elseif ( $node['object_id'] && isset( $current['ancestors'][ $node['object_id'] ] ) ) {
-			$classes[] = 'amm-item--current-ancestor';
+			$is_ancestor = true;
 		} elseif ( $node['url'] && $current['url'] && untrailingslashit( $node['url'] ) === $current['url'] ) {
-			$classes[]  = 'amm-item--current';
 			$is_current = true;
 		}
 
 		$children_html = self::render_level( $node['children'], $args, $current, $depth + 1 );
 
-		if ( $children_html ) {
-			$classes[] = 'amm-item--parent';
+		if ( $compat ) {
+			$classes = self::compat_classes( $node, $current, $is_current, $is_ancestor, '' !== $children_html );
+		} else {
+			$classes = array_merge( array( 'amm-item', 'amm-item--depth-' . (int) $depth ), $node['classes'] );
+
+			if ( $is_current ) {
+				$classes[] = 'amm-item--current';
+			} elseif ( $is_ancestor ) {
+				$classes[] = 'amm-item--current-ancestor';
+			}
+
+			if ( $children_html ) {
+				$classes[] = 'amm-item--parent';
+			}
 		}
 
 		$classes = array_values( array_unique( array_filter( array_map( 'sanitize_html_class', $classes ) ) ) );
@@ -267,6 +379,27 @@ class AMM_Renderer {
 
 		if ( $is_current ) {
 			$attributes .= ' aria-current="page"';
+		}
+
+		if ( $compat ) {
+			// A WordPress beépített menüjével azonos felépítés: sem saját
+			// osztály, sem extra elem nem kerül a linkbe, így a téma
+			// stílusai és szkriptjei változatlanul működnek.
+			if ( $node['url'] ) {
+				$html .= sprintf(
+					'<a href="%s"%s>%s</a>',
+					esc_url( $node['url'] ),
+					$attributes,
+					esc_html( $node['title'] )
+				);
+			} else {
+				$html .= sprintf( '<span>%s</span>', esc_html( $node['title'] ) );
+			}
+
+			$html .= $children_html;
+			$html .= '</li>';
+
+			return $html;
 		}
 
 		if ( $node['url'] ) {
