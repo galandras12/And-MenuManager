@@ -286,6 +286,114 @@ class AMM_Automations {
 	}
 
 	/**
+	 * Aloldalak rászinkronizálása egy menüre.
+	 *
+	 * Azoknál a menüpontoknál, amelyek olyan oldalra mutatnak, aminek van
+	 * aloldala, bekapcsolja az automatikus aloldal-kezelést a megadott
+	 * mélységig. Így a WordPress menüből hiányzó aloldalak is megjelennek,
+	 * anélkül hogy több ezer menüpontot kellene létrehozni.
+	 *
+	 * @param int $menu_id Menü azonosító.
+	 * @param int $depth   Mélység (0 = korlátlan).
+	 * @return array|WP_Error
+	 */
+	public static function sync_children( $menu_id, $depth = 0 ) {
+		$menu = AMM_Menu_Repository::get( $menu_id );
+
+		if ( ! $menu ) {
+			return new WP_Error( 'amm_not_found', __( 'A menü nem található.', 'and-menumanager' ), array( 'status' => 404 ) );
+		}
+
+		$items    = AMM_Item_Repository::get_for_menu( $menu_id );
+		$depth    = max( 0, (int) $depth );
+		$updated  = 0;
+		$already  = 0;
+		$parents  = 0;
+		$failed   = 0;
+
+		AMM_Cache::suspend();
+
+		foreach ( $items as $item ) {
+			if ( 'post_type' !== $item['type'] || ! $item['object_id'] ) {
+				continue;
+			}
+
+			if ( ! AMM_Pages::has_children( $item['object_id'], $item['object_type'] ) ) {
+				continue;
+			}
+
+			++$parents;
+
+			if ( $item['auto_children'] && (int) $item['auto_depth'] === $depth ) {
+				++$already;
+				continue;
+			}
+
+			$result = AMM_Item_Repository::update(
+				$item['id'],
+				array(
+					'auto_children' => 1,
+					'auto_depth'    => $depth,
+				)
+			);
+
+			if ( is_wp_error( $result ) ) {
+				++$failed;
+				AMM_Log::add( $result->get_error_message(), sprintf( 'Aloldal-szinkron: %s', $menu['name'] ) );
+				continue;
+			}
+
+			++$updated;
+		}
+
+		AMM_Item_Repository::flush_touched();
+		AMM_Cache::resume();
+		AMM_Cache::flush();
+
+		return array(
+			'menu_id' => (int) $menu_id,
+			'name'    => $menu['name'],
+			'updated' => $updated,
+			'already' => $already,
+			'parents' => $parents,
+			'failed'  => $failed,
+			'links'   => AMM_Tree::stats( $menu_id ),
+		);
+	}
+
+	/**
+	 * Aloldalak rászinkronizálása minden menüre.
+	 *
+	 * @param int $depth Mélység (0 = korlátlan).
+	 * @return array
+	 */
+	public static function sync_children_all( $depth = 0 ) {
+		$menus   = AMM_Menu_Repository::all( array( 'per_page' => 500 ) );
+		$results = array();
+		$updated = 0;
+		$already = 0;
+
+		foreach ( $menus['items'] as $menu ) {
+			$result = self::sync_children( $menu['id'], $depth );
+
+			if ( is_wp_error( $result ) ) {
+				continue;
+			}
+
+			$updated  += $result['updated'];
+			$already  += $result['already'];
+			$results[] = $result;
+		}
+
+		return array(
+			'menus'   => $results,
+			'updated' => $updated,
+			'already' => $already,
+			'count'   => count( $results ),
+		);
+	}
+
+	/**
 	 * Árva elemek eltávolítása minden menüből.
 	 *
 	 * @return int Törölt elemek száma.

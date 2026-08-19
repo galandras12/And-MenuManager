@@ -19,6 +19,26 @@ class AMM_Rest {
 	 */
 	public function hooks() {
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+		add_filter( 'rest_request_after_callbacks', array( $this, 'log_rest_errors' ), 10, 3 );
+	}
+
+	/**
+	 * A saját végpontjainkon keletkező hibák naplózása.
+	 *
+	 * @param mixed           $response Válasz vagy WP_Error.
+	 * @param array           $handler  Kezelő.
+	 * @param WP_REST_Request $request  Kérés.
+	 * @return mixed
+	 */
+	public function log_rest_errors( $response, $handler, $request ) {
+		if ( is_wp_error( $response ) && 0 === strpos( (string) $request->get_route(), '/' . AMM_REST_NAMESPACE ) ) {
+			AMM_Log::add(
+				$response->get_error_message(),
+				$request->get_method() . ' ' . $request->get_route()
+			);
+		}
+
+		return $response;
 	}
 
 	/**
@@ -229,6 +249,38 @@ class AMM_Rest {
 
 		register_rest_route(
 			$ns,
+			'/progress',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_progress' ),
+				'permission_callback' => $manage,
+			)
+		);
+
+		register_rest_route(
+			$ns,
+			'/log',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_log' ),
+					'permission_callback' => $manage,
+				),
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'add_log' ),
+					'permission_callback' => $manage,
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'callback'            => array( $this, 'clear_log' ),
+					'permission_callback' => $manage,
+				),
+			)
+		);
+
+		register_rest_route(
+			$ns,
 			'/health',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -423,6 +475,9 @@ class AMM_Rest {
 			$items = array( $request->get_params() );
 		}
 
+		// Sok elem egyszerre: a gyorsítótár egyszer ürüljön, a végén.
+		AMM_Cache::suspend();
+
 		foreach ( $items as $data ) {
 			if ( ! is_array( $data ) ) {
 				continue;
@@ -447,11 +502,17 @@ class AMM_Rest {
 			$new_id = AMM_Item_Repository::insert( $menu_id, $data );
 
 			if ( is_wp_error( $new_id ) ) {
+				AMM_Item_Repository::flush_touched();
+				AMM_Cache::resume();
+
 				return $new_id;
 			}
 
 			$created[] = $new_id;
 		}
+
+		AMM_Item_Repository::flush_touched();
+		AMM_Cache::resume();
 
 		return rest_ensure_response(
 			array(
@@ -785,8 +846,49 @@ class AMM_Rest {
 		switch ( $action ) {
 			case 'flush':
 				AMM_Cache::flush();
+				$cleared = AMM_Log::clear();
 
-				return rest_ensure_response( array( 'message' => __( 'A gyorsítótár kiürült.', 'and-menumanager' ) ) );
+				return rest_ensure_response(
+					array(
+						'message' => $cleared
+							/* translators: %d: naplóbejegyzések száma. */
+							? sprintf( __( 'A gyorsítótár kiürült, és %d naplóbejegyzés törlődött.', 'and-menumanager' ), $cleared )
+							: __( 'A gyorsítótár kiürült.', 'and-menumanager' ),
+						'log_cleared' => $cleared,
+					)
+				);
+
+			case 'sync-children':
+				$depth   = (int) $request->get_param( 'depth' );
+				$menu_id = (int) $request->get_param( 'menu_id' );
+
+				if ( $menu_id ) {
+					$result = AMM_Automations::sync_children( $menu_id, $depth );
+
+					if ( is_wp_error( $result ) ) {
+						return $result;
+					}
+
+					$result['message'] = self::sync_message( $result['updated'], $result['already'] );
+
+					return rest_ensure_response( $result );
+				}
+
+				$result            = AMM_Automations::sync_children_all( $depth );
+				$result['message'] = self::sync_message( $result['updated'], $result['already'] );
+
+				return rest_ensure_response( $result );
+
+			case 'clear-log':
+				$cleared = AMM_Log::clear();
+
+				return rest_ensure_response(
+					array(
+						/* translators: %d: naplóbejegyzések száma. */
+						'message' => sprintf( __( '%d naplóbejegyzés törölve.', 'and-menumanager' ), $cleared ),
+						'cleared' => $cleared,
+					)
+				);
 
 			case 'orphans':
 				$deleted = AMM_Automations::purge_orphans();
@@ -820,6 +922,97 @@ class AMM_Rest {
 			default:
 				return new WP_Error( 'amm_unknown_tool', __( 'Ismeretlen művelet.', 'and-menumanager' ), array( 'status' => 400 ) );
 		}
+	}
+
+	/**
+	 * Összefoglaló üzenet az aloldal-szinkronhoz.
+	 *
+	 * @param int $updated Módosított menüpontok.
+	 * @param int $already Már beállított menüpontok.
+	 * @return string
+	 */
+	private static function sync_message( $updated, $already ) {
+		if ( ! $updated && ! $already ) {
+			return __( 'Nem található olyan menüpont, aminek aloldala lenne.', 'and-menumanager' );
+		}
+
+		if ( ! $updated ) {
+			/* translators: %d: menüpontok száma. */
+			return sprintf( __( 'Minden rendben: %d menüpontnál már be volt kapcsolva az aloldal-szinkron.', 'and-menumanager' ), $already );
+		}
+
+		/* translators: 1: módosított menüpontok, 2: már beállított menüpontok. */
+		return sprintf( __( '%1$d menüpont kapott aloldal-szinkront (%2$d már be volt állítva).', 'and-menumanager' ), $updated, $already );
+	}
+
+	/**
+	 * Élő állapot: menük és menüpontok száma.
+	 *
+	 * Két olcsó COUNT lekérdezés, hogy a felület futó művelet közben is
+	 * mutatni tudja, hol tart a folyamat.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function get_progress() {
+		global $wpdb;
+
+		$menus = AMM_Installer::menus_table();
+		$items = AMM_Installer::items_table();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$menu_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$menus}" );
+		$item_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items}" );
+		// phpcs:enable
+
+		return rest_ensure_response(
+			array(
+				'menus' => $menu_count,
+				'items' => $item_count,
+				'log'   => count( AMM_Log::all() ),
+				'time'  => current_time( 'mysql' ),
+			)
+		);
+	}
+
+	/**
+	 * Hibanapló lekérése.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function get_log() {
+		return rest_ensure_response(
+			array(
+				'entries' => AMM_Log::all(),
+				'text'    => AMM_Log::as_text(),
+			)
+		);
+	}
+
+	/**
+	 * Bejegyzés hozzáadása (a felületen keletkezett hibákhoz).
+	 *
+	 * @param WP_REST_Request $request Kérés.
+	 * @return WP_REST_Response
+	 */
+	public function add_log( $request ) {
+		AMM_Log::add(
+			(string) $request->get_param( 'message' ),
+			(string) $request->get_param( 'context' ),
+			(string) $request->get_param( 'level' )
+		);
+
+		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/**
+	 * Napló ürítése.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function clear_log() {
+		$cleared = AMM_Log::clear();
+
+		return rest_ensure_response( array( 'cleared' => $cleared ) );
 	}
 
 	/**

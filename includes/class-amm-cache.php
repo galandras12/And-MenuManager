@@ -26,6 +26,58 @@ class AMM_Cache {
 	private static $runtime = array();
 
 	/**
+	 * Felfüggesztések száma (egymásba ágyazható).
+	 *
+	 * @var int
+	 */
+	private static $suspended = 0;
+
+	/**
+	 * Van-e elhalasztott ürítés?
+	 *
+	 * @var bool
+	 */
+	private static $pending_flush = false;
+
+	/**
+	 * Ürítés felfüggesztése kötegelt művelet idejére.
+	 *
+	 * Enélkül egy több ezer elemes átemelés minden egyes elem után
+	 * kiürítené a gyorsítótárat (opció-írással együtt), ami a művelet
+	 * legdrágább része lenne.
+	 *
+	 * @return void
+	 */
+	public static function suspend() {
+		++self::$suspended;
+	}
+
+	/**
+	 * Felfüggesztés feloldása; a közben kért ürítés egyszer fut le.
+	 *
+	 * @return void
+	 */
+	public static function resume() {
+		if ( self::$suspended > 0 ) {
+			--self::$suspended;
+		}
+
+		if ( 0 === self::$suspended && self::$pending_flush ) {
+			self::$pending_flush = false;
+			self::flush();
+		}
+	}
+
+	/**
+	 * Fel van-e függesztve az ürítés?
+	 *
+	 * @return bool
+	 */
+	public static function is_suspended() {
+		return self::$suspended > 0;
+	}
+
+	/**
 	 * Aktuális cache verzió.
 	 *
 	 * @return int
@@ -48,6 +100,13 @@ class AMM_Cache {
 	 */
 	public static function flush() {
 		self::$runtime = array();
+
+		if ( self::$suspended > 0 ) {
+			self::$pending_flush = true;
+
+			return;
+		}
+
 		update_option( 'amm_cache_version', self::version() + 1, true );
 	}
 

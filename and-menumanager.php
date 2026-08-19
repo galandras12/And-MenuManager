@@ -3,7 +3,7 @@
  * Plugin Name:       And-MenuManager
  * Plugin URI:        https://github.com/galandras12/And-MenuManager
  * Description:       Nagy méretű (több száz / több ezer oldalas) oldalstruktúrák navigációs menüinek gyors, stabil kezelése. Szabályalapú menük, automatikus aloldal-hozzáadás, drag &amp; drop rendezés, szerepkör alapú hozzáférés és modern, minimalista kezelőfelület.
- * Version:           0.3
+ * Version:           0.4
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            galandras12 + AI
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AMM_VERSION', '0.3' );
+define( 'AMM_VERSION', '0.4' );
 define( 'AMM_DB_VERSION', '1' );
 define( 'AMM_FILE', __FILE__ );
 define( 'AMM_PATH', plugin_dir_path( __FILE__ ) );

@@ -13,6 +13,13 @@ defined( 'ABSPATH' ) || exit;
 class AMM_Importer {
 
 	/**
+	 * A futó átemelés alatt egyszer betöltött menülista.
+	 *
+	 * @var array|null
+	 */
+	private static $menu_cache = null;
+
+	/**
 	 * Menük exportálása.
 	 *
 	 * @param array $ids Menü azonosítók (üres = mind).
@@ -166,11 +173,22 @@ class AMM_Importer {
 		$synced    = 0;
 		$added     = 0;
 
+		// Kötegelt mód: a gyorsítótár ürítése egyszer fut le a végén,
+		// nem menüpontonként. Nagy menüknél ez a művelet dandárja.
+		AMM_Cache::suspend();
+		self::$menu_cache = null;
+
 		foreach ( $core_menus as $core_menu ) {
 			$target = self::find_imported_menu( $core_menu );
 			$result = $target ? self::sync_from_core( $core_menu, $target ) : self::create_from_core( $core_menu );
 
 			if ( is_wp_error( $result ) ) {
+				AMM_Log::add(
+					$result->get_error_message(),
+					/* translators: %s: menü neve. */
+					sprintf( __( 'Átemelés: %s', 'and-menumanager' ), $core_menu->name )
+				);
+
 				continue;
 			}
 
@@ -197,8 +215,12 @@ class AMM_Importer {
 			$results[] = $result;
 		}
 
+		AMM_Item_Repository::flush_touched();
+		self::$menu_cache = null;
+
 		AMM_Settings::update( array( 'locations' => $settings['locations'] ) );
 		AMM_Cache::flush();
+		AMM_Cache::resume();
 
 		return array(
 			'menus'   => $results,
@@ -255,11 +277,15 @@ class AMM_Importer {
 	 * @return array|null
 	 */
 	private static function find_imported_menu( $core_menu ) {
-		$all     = AMM_Menu_Repository::all( array( 'per_page' => 200 ) );
+		if ( null === self::$menu_cache ) {
+			$all              = AMM_Menu_Repository::all( array( 'per_page' => 500 ) );
+			self::$menu_cache = $all['items'];
+		}
+
 		$by_slug = null;
 		$by_name = null;
 
-		foreach ( $all['items'] as $menu ) {
+		foreach ( self::$menu_cache as $menu ) {
 			$source = isset( $menu['settings']['source'] ) ? $menu['settings']['source'] : array();
 
 			if ( ! empty( $source['term_id'] ) && (int) $source['term_id'] === (int) $core_menu->term_id ) {
@@ -423,6 +449,14 @@ class AMM_Importer {
 		}
 
 		self::stamp_source( $menu_id, $core_menu );
+
+		if ( is_array( self::$menu_cache ) ) {
+			$fresh = AMM_Menu_Repository::get( $menu_id );
+
+			if ( $fresh ) {
+				self::$menu_cache[] = $fresh;
+			}
+		}
 
 		return array(
 			'id'      => $menu_id,

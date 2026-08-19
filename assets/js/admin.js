@@ -178,6 +178,7 @@
 			return;
 		}
 
+		message = ( message && String( message ).trim() ) ? String( message ).trim() : T.error;
 		state.error = message;
 
 		var existing = document.getElementById( 'amm-error' );
@@ -202,17 +203,79 @@
 		}
 	}
 
-	function fail( error ) {
-		var message = error && error.message ? error.message : T.error;
+	/**
+	 * Olvasható hibaszöveg előállítása bármilyen hibaobjektumból.
+	 *
+	 * Hálózati hiba vagy időtúllépés esetén a hibaobjektum gyakran üres,
+	 * ezért soha nem hagyatkozunk egyetlen mezőre.
+	 */
+	function errorText( error ) {
+		if ( ! error ) {
+			return T.error;
+		}
+
+		if ( 'string' === typeof error && error.trim() ) {
+			return error;
+		}
+
+		var parts = [];
+
+		if ( error.message && String( error.message ).trim() ) {
+			parts.push( String( error.message ).trim() );
+		}
+
+		if ( error.code && String( error.code ).trim() ) {
+			parts.push( '[' + error.code + ']' );
+		}
+
+		if ( ! parts.length && error.status ) {
+			parts.push( 'HTTP ' + error.status );
+		}
+
+		if ( ! parts.length && error.name ) {
+			parts.push( String( error.name ) );
+		}
+
+		if ( ! parts.length ) {
+			parts.push( T.error + ' A kérés válasz nélkül szakadt meg – valószínűleg időtúllépés vagy megszakadt kapcsolat.' );
+		}
+
+		return parts.join( ' ' );
+	}
+
+	function fail( error, context ) {
+		var message = errorText( error );
 
 		showError( message );
 		toast( message, 'error' );
+		reportError( message, context );
+	}
+
+	/**
+	 * Hiba feljegyzése a szerveroldali naplóba.
+	 *
+	 * Csendben elbukik, ha a naplózás sem érhető el – nem indítunk
+	 * végtelen hibaláncot.
+	 */
+	function reportError( message, context ) {
+		if ( ! message ) {
+			return;
+		}
+
+		api( '/log', {
+			method: 'POST',
+			body: {
+				message: message,
+				context: context || 'felület',
+				level: 'error'
+			}
+		} ).catch( function () {} );
 	}
 
 	/**
 	 * Folyamatjelző sáv a felület tetején.
 	 */
-	function showPending( message ) {
+	function showPending( message, detail, onStop ) {
 		if ( ! root ) {
 			return;
 		}
@@ -221,8 +284,17 @@
 		var banner = h( 'div', { id: 'amm-pending', class: 'amm-alert amm-alert--info', role: 'status', 'aria-live': 'polite' },
 			h( 'span', { class: 'amm-alert__body' },
 				h( 'span', { class: 'amm-alert__spinner', 'aria-hidden': 'true' } ),
-				h( 'span', { text: message } )
-			)
+				h( 'span', {},
+					h( 'strong', { text: message } ),
+					h( 'span', { id: 'amm-pending-detail', class: 'amm-alert__detail', text: detail || '' } )
+				)
+			),
+			onStop ? h( 'button', {
+				class: 'amm-btn amm-btn--sm',
+				type: 'button',
+				text: 'Követés leállítása',
+				onClick: onStop
+			} ) : null
 		);
 
 		if ( existing ) {
@@ -230,6 +302,135 @@
 		} else {
 			root.insertBefore( banner, root.firstChild );
 		}
+	}
+
+	function updatePendingDetail( text ) {
+		var node = document.getElementById( 'amm-pending-detail' );
+
+		if ( node ) {
+			node.textContent = text;
+		}
+	}
+
+	/* ---------------------------------------------------------------
+	 * Élő állapotkövetés
+	 * ------------------------------------------------------------ */
+
+	var progressTimer = null;
+	var backgroundTimer = null;
+
+	function formatProgress( data ) {
+		return ' — eddig ' + data.menus + ' menü, ' + data.items + ' menüpont';
+	}
+
+	function pollProgress() {
+		return api( '/progress' ).then( function ( data ) {
+			state.progress = data;
+			updatePendingDetail( formatProgress( data ) );
+			refreshMenuCounts();
+
+			return data;
+		} ).catch( function () {
+			return null;
+		} );
+	}
+
+	function startProgressWatch() {
+		stopProgressWatch();
+		pollProgress();
+		progressTimer = window.setInterval( pollProgress, 3000 );
+	}
+
+	function stopProgressWatch() {
+		if ( progressTimer ) {
+			window.clearInterval( progressTimer );
+			progressTimer = null;
+		}
+	}
+
+	/**
+	 * A kérés megszakadt, de a szerver még dolgozhat.
+	 *
+	 * Addig figyeljük a menüpontok számát, amíg mozog; ha három körön át
+	 * változatlan, lezárjuk és frissítjük a felületet.
+	 */
+	function watchBackground() {
+		stopBackgroundWatch();
+
+		var last = null;
+		var stable = 0;
+
+		showPending(
+			'A művelet a szerveren még futhat',
+			'',
+			function () {
+				stopBackgroundWatch( true );
+			}
+		);
+
+		backgroundTimer = window.setInterval( function () {
+			pollProgress().then( function ( data ) {
+				if ( ! data ) {
+					return;
+				}
+
+				if ( null !== last && data.items === last ) {
+					stable += 1;
+				} else {
+					stable = 0;
+				}
+
+				last = data.items;
+
+				if ( stable >= 3 ) {
+					stopBackgroundWatch( true );
+				}
+			} );
+		}, 5000 );
+	}
+
+	function stopBackgroundWatch( finished ) {
+		if ( backgroundTimer ) {
+			window.clearInterval( backgroundTimer );
+			backgroundTimer = null;
+		}
+
+		if ( ! finished ) {
+			return;
+		}
+
+		hidePending();
+
+		loadMenus().then( function () {
+			if ( 'settings' === root.dataset.view ) {
+				renderSettingsView();
+			} else {
+				renderMenusView();
+			}
+
+			if ( state.progress ) {
+				toast( 'A folyamat befejeződött – ' + state.progress.items + ' menüpont.', 'success' );
+			}
+		} ).catch( function () {} );
+	}
+
+	/**
+	 * A menülista elemszámainak frissítése a felület újraépítése nélkül.
+	 */
+	function refreshMenuCounts() {
+		var list = document.querySelector( '.amm-menulist' );
+
+		if ( ! list || ! list.parentNode ) {
+			return Promise.resolve();
+		}
+
+		return loadMenus().then( function () {
+			var current = document.querySelector( '.amm-menulist' );
+
+			if ( current && current.parentNode ) {
+				current.parentNode.replaceChild( buildMenuListItems(), current );
+			}
+		} ).catch( function () {} );
 	}
 
 	function hidePending() {
@@ -291,16 +492,21 @@
 	 * @param {Function} factory A műveletet indító függvény, ami ígéretet ad vissza.
 	 * @return {Promise}
 	 */
-	function runTask( button, label, factory ) {
+	function runTask( button, label, factory, options ) {
+		options = options || {};
+
 		var restore = setButtonBusy( button, label );
 
 		state.busy = true;
 		state.error = '';
+		stopBackgroundWatch();
 		showPending( label );
+		startProgressWatch();
 
 		function done() {
 			state.busy = false;
 			restore();
+			stopProgressWatch();
 			hidePending();
 		}
 
@@ -310,7 +516,13 @@
 			return result;
 		}, function ( error ) {
 			done();
-			fail( error );
+			fail( error, options.context || label );
+
+			// A szerver a megszakadt kérés után is dolgozhat tovább:
+			// ilyenkor tovább figyeljük a menüpontok számát.
+			if ( options.watchAfterError ) {
+				watchBackground();
+			}
 
 			throw error;
 		} );
@@ -367,7 +579,9 @@
 		busy: false,
 		creating: false,
 		newMenuName: '',
-		error: ''
+		error: '',
+		progress: null,
+		log: []
 	};
 
 	var root = document.getElementById( 'amm-app' );
@@ -1015,7 +1229,11 @@
 	 * Megjelenítés – menülista
 	 * ------------------------------------------------------------ */
 
-	function renderMenuList() {
+	/**
+	 * A menülista törzse külön, hogy futó művelet közben az elemszámok
+	 * a felület újraépítése nélkül frissülhessenek.
+	 */
+	function buildMenuListItems() {
 		var list = h( 'div', { class: 'amm-menulist' } );
 
 		if ( ! state.menus.length ) {
@@ -1039,6 +1257,11 @@
 			);
 		} );
 
+		return list;
+	}
+
+	function renderMenuList() {
+		var list = buildMenuListItems();
 		var createForm = null;
 
 		createForm = state.creating ? h( 'form', {
@@ -1887,6 +2110,32 @@
 					text: T.preview,
 					onClick: showPreview
 				} ),
+				h( 'button', {
+					class: 'amm-btn',
+					type: 'button',
+					text: 'Aloldalak szinkronizálása',
+					title: 'Bekapcsolja az automatikus aloldal-kezelést minden olyan menüpontnál, aminek van aloldala',
+					onClick: function ( event ) {
+						var message = '';
+
+						runTask( event.currentTarget, 'Szinkronizálás…', function () {
+							return api( '/tools/sync-children', {
+								method: 'POST',
+								body: {
+									menu_id: menu.id,
+									depth: menu.settings.auto_depth || 0
+								}
+							} ).then( function ( data ) {
+								message = data.message || T.saved;
+
+								return loadTree( menu.id );
+							} );
+						}, { watchAfterError: true, context: 'Aloldal-szinkron: ' + menu.name } ).then( function () {
+							renderMenusView();
+							toast( message, 'success' );
+						} ).catch( function () {} );
+					}
+				} ),
 				h( 'button', { class: 'amm-btn', type: 'button', text: T.duplicate, onClick: duplicateMenu } ),
 				h( 'button', { class: 'amm-btn amm-btn--danger', type: 'button', text: T.delete, onClick: deleteMenu } )
 			)
@@ -2074,7 +2323,7 @@
 
 				return loadMenus();
 			} );
-		} ).then( function () {
+		}, { watchAfterError: true, context: 'WordPress menük átemelése' } ).then( function () {
 			renderMenusView();
 			toast( message, 'success' );
 		} ).catch( function () {
@@ -2394,6 +2643,56 @@
 		toolButton( 'Árva menüelemek törlése', 'orphans', 'Takarítás…', 'A már nem létező oldalakra mutató elemek eltávolítása.' );
 		toolButton( 'WordPress menük átemelése', 'import-core', 'Átemelés folyamatban…', 'Újrafuttatható: a már átemelt menüket nem duplikálja, csak a hiányzó menüpontokat pótolja.' );
 
+		/* Hiányzó aloldalak rászinkronizálása */
+		var syncDepth = 0;
+		var syncSelect = h( 'select', {
+			class: 'amm-select',
+			style: 'max-width:160px;margin-bottom:8px',
+			onChange: function ( event ) {
+				syncDepth = parseInt( event.target.value, 10 ) || 0;
+			}
+		} );
+
+		[ [ 0, 'Korlátlan mélységig' ], [ 1, '1 szint' ], [ 2, '2 szint' ], [ 3, '3 szint' ], [ 4, '4 szint' ], [ 5, '5 szint' ] ].forEach( function ( option ) {
+			syncSelect.appendChild( h( 'option', { value: option[ 0 ], text: option[ 1 ] } ) );
+		} );
+
+		tools.appendChild(
+			h( 'div', { style: 'margin:14px 0 6px;padding-top:12px;border-top:1px solid var(--amm-border)' },
+				h( 'span', { class: 'amm-field__label', text: 'Hiányzó aloldalak szinkronizálása' } ),
+				h( 'p', {
+					class: 'amm-field__hint',
+					style: 'margin:0 0 8px',
+					text: 'Minden menüpontnál, aminek van aloldala, bekapcsolja az automatikus aloldal-kezelést a megadott mélységig – így a WordPress menüből kimaradt aloldalak is megjelennek, új menüpontok létrehozása nélkül.'
+				} ),
+				syncSelect,
+				h( 'div', {},
+					h( 'button', {
+						class: 'amm-btn amm-btn--primary',
+						type: 'button',
+						text: 'Aloldalak szinkronizálása (minden menü)',
+						onClick: function ( event ) {
+							var message = '';
+
+							runTask( event.currentTarget, 'Szinkronizálás folyamatban…', function () {
+								return api( '/tools/sync-children', {
+									method: 'POST',
+									body: { depth: syncDepth, menu_id: 0 }
+								} ).then( function ( data ) {
+									message = data.message || T.saved;
+
+									return loadMenus();
+								} );
+							}, { watchAfterError: true, context: 'Aloldal-szinkron' } ).then( function () {
+								renderSettingsView();
+								toast( message, 'success' );
+							} ).catch( function () {} );
+						}
+					} )
+				)
+			)
+		);
+
 		tools.appendChild(
 			h( 'div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:12px' },
 				h( 'button', {
@@ -2499,6 +2798,88 @@
 			healthBody
 		) );
 
+		/* Hibanapló */
+		var logBody = h( 'div', { class: 'amm-panel__body' } );
+
+		if ( ! state.log.length ) {
+			logBody.appendChild( h( 'p', { class: 'amm-empty', text: 'Nincs rögzített hiba.' } ) );
+		} else {
+			var logList = h( 'div', { class: 'amm-log' } );
+
+			state.log.forEach( function ( entry ) {
+				logList.appendChild(
+					h( 'div', { class: 'amm-log__row' },
+						h( 'span', { class: 'amm-log__time', text: entry.time || '' } ),
+						h( 'span', { class: 'amm-log__message' },
+							entry.context ? h( 'strong', { text: entry.context + ': ' } ) : null,
+							h( 'span', { text: entry.message || '' } )
+						)
+					)
+				);
+			} );
+
+			logBody.appendChild( logList );
+		}
+
+		logBody.appendChild(
+			h( 'div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:12px' },
+				h( 'button', {
+					class: 'amm-btn',
+					type: 'button',
+					disabled: ! state.log.length,
+					text: 'Exportálás (.txt)',
+					onClick: function () {
+						var stamp = new Date().toISOString().slice( 0, 19 ).replace( /[:T]/g, '-' );
+						var blob = new Blob( [ state.logText || '' ], { type: 'text/plain;charset=utf-8' } );
+						var url = URL.createObjectURL( blob );
+						var link = h( 'a', { href: url, download: 'and-menumanager-hibanaplo-' + stamp + '.txt' } );
+
+						document.body.appendChild( link );
+						link.click();
+						link.remove();
+						URL.revokeObjectURL( url );
+					}
+				} ),
+				h( 'button', {
+					class: 'amm-btn amm-btn--danger',
+					type: 'button',
+					disabled: ! state.log.length,
+					text: 'Napló ürítése',
+					onClick: function ( event ) {
+						runTask( event.currentTarget, 'Ürítés…', function () {
+							return api( '/log', { method: 'DELETE' } ).then( function () {
+								return loadLog();
+							} );
+						} ).then( function () {
+							renderSettingsView();
+							toast( 'A napló kiürült.', 'success' );
+						} ).catch( function () {} );
+					}
+				} ),
+				h( 'button', {
+					class: 'amm-btn amm-btn--ghost',
+					type: 'button',
+					text: 'Frissítés',
+					onClick: function () {
+						loadLog().then( renderSettingsView ).catch( function () {} );
+					}
+				} )
+			)
+		);
+
+		logBody.appendChild( h( 'p', {
+			class: 'amm-field__hint',
+			text: 'A napló legfeljebb 200 bejegyzést őriz. A „Gyorsítótár ürítése” gomb ezt is kiüríti.'
+		} ) );
+
+		cards.appendChild( h( 'section', { class: 'amm-panel' },
+			h( 'div', { class: 'amm-panel__head' },
+				h( 'h2', { class: 'amm-panel__title', text: 'Hibanapló' } ),
+				h( 'span', { class: 'amm-badge', text: String( state.log.length ) } )
+			),
+			logBody
+		) );
+
 		root.appendChild( cards );
 
 		if ( state.error ) {
@@ -2510,6 +2891,16 @@
 		return api( '/settings' ).then( function ( data ) {
 			state.settings = data.settings;
 			state.locations = data.locations || [];
+		} );
+	}
+
+	function loadLog() {
+		return api( '/log' ).then( function ( data ) {
+			state.log = data.entries || [];
+			state.logText = data.text || '';
+		} ).catch( function () {
+			state.log = [];
+			state.logText = '';
 		} );
 	}
 
@@ -2535,7 +2926,8 @@
 					state.health = data;
 				} ).catch( function () {
 					state.health = null;
-				} )
+				} ),
+				loadLog()
 			] ).then( renderSettingsView ).catch( function ( error ) {
 				fail( error );
 				renderSettingsView();
