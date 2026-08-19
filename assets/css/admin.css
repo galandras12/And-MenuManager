@@ -835,3 +835,55 @@
 	gap: 6px;
 	margin-top: 8px;
 }
+
+/* --- Folyamatjelzés gombon és sávban --- */
+.amm-btn__spinner {
+	flex: none;
+	width: 12px;
+	height: 12px;
+	border: 2px solid currentColor;
+	border-top-color: transparent;
+	border-radius: 50%;
+	opacity: .85;
+	animation: amm-spin .7s linear infinite;
+}
+
+.amm-btn.is-busy {
+	cursor: progress;
+	opacity: 1;
+}
+
+.amm-btn.is-busy:disabled {
+	opacity: .9;
+}
+
+.amm-alert--info {
+	border-left-color: var(--amm-accent);
+	background: var(--amm-accent-soft);
+}
+
+.amm-alert__body {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.amm-alert__spinner {
+	flex: none;
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--amm-accent);
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: amm-spin .7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.amm-spinner,
+	.amm-btn__spinner,
+	.amm-alert__spinner {
+		animation: none;
+		border-top-color: currentColor;
+		border-right-color: transparent;
+	}
+}

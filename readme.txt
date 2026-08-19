@@ -4,7 +4,7 @@ Tags: menu, navigation, menük, navigáció, performance
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.2
+Stable tag: 0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ Ha a szülő oldalon be van kapcsolva az automatikus aloldal-kezelés, az új ol
 Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában; e fölött automatikusan szintenkénti lekérdezésre vált. A küszöb a beállításokban módosítható.
 
 == Changelog ==
+
+= 0.3 =
+* A hosszabb műveletek (WordPress menük átemelése, gyorsítótár ürítése, indexépítés, árva elemek törlése, tömeges hozzáadás) futás közben pörgő ikont mutatnak a gombon, és a felület tetején is látszik, hogy folyamatban vannak.
+* A futó művelet gombja a befejezésig letiltva marad, így nem indítható kétszer.
 
 = 0.2 =
 * Javítva: a REST hívások sima (nem "szép") permalink-beállítás mellett elromlottak, ezért az újonnan létrehozott menü nem jelent meg a listában.
