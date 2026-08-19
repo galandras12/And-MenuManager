@@ -24,6 +24,7 @@ class AMM_Renderer {
 			'container_class' => '',
 			'container_id'    => '',
 			'menu_class'      => '',
+			'menu_id'         => '',
 			'depth'           => 0,
 			'toggles'         => true,
 			'aria_label'      => '',
@@ -73,6 +74,16 @@ class AMM_Renderer {
 
 		$current = self::current_context();
 		$html    = self::render_level( $tree, $args, $current, 1, $classes );
+
+		if ( $args['menu_id'] ) {
+			// A téma CSS-e gyakran azonosítóra hivatkozik (pl. #primary-menu).
+			$html = preg_replace(
+				'/^<ul /',
+				sprintf( '<ul id="%s" ', esc_attr( $args['menu_id'] ) ),
+				$html,
+				1
+			);
+		}
 
 		if ( 'none' !== $args['container'] && $args['container'] ) {
 			$tag             = tag_escape( $args['container'] );

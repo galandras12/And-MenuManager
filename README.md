@@ -161,6 +161,11 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 
 ## Verziók
 
+### 0.5.2
+- **Javítva: a menü kétszer jelent meg a látogatói oldalon**, ha sablonpozícióhoz (pl. „Elsődleges menü”) volt rendelve. A `pre_wp_nav_menu` szűrő kiírta a menüt *és* vissza is adta, a WordPress pedig a visszaadott értéket még egyszer kiírta. A szűrő mostantól csak visszaad — a kiírás a WordPress dolga.
+- A téma `menu_id` értéke rákerül a `<ul>` elemre, így a témára írt CSS (pl. `#primary-menu`) továbbra is illeszkedik.
+- Ha a téma kifejezetten konténer nélkül kéri a menüt (`container => false`), a plugin sem tesz köré sajátot — így nem esik szét a téma elrendezése.
+
 ### 0.5.1
 - **Javítva: a fa visszaugrott a tetejére.** Egy menüpontra kattintva a felület újraépítette a teljes fát, így több száz elemnél minden kijelölés után vissza kellett görgetni. A kijelölés most már csak az érintett sorok jelölését és az oldalsó panelt frissíti, a fa DOM-ja marad; a többi újrarajzolás (mentés, hozzáadás, törlés, ki- és becsukás) pedig megőrzi a görgetési pozíciót a fában, a menülistában és a választóban is.
 

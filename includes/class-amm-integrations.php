@@ -69,6 +69,11 @@ class AMM_Integrations {
 	 * Így a téma wp_nav_menu() hívásait átvesszük anélkül, hogy a témát
 	 * módosítani kellene.
 	 *
+	 * FONTOS: itt csak visszaadjuk a HTML-t, kiírni nem szabad. A
+	 * wp_nav_menu() a szűrő nem-null visszatérési értékét maga írja ki,
+	 * ha az $args->echo igaz – ha mi is kiírnánk, a menü kétszer
+	 * jelenne meg az oldalon.
+	 *
 	 * @param string|null $output Eredeti kimenet.
 	 * @param object      $args   wp_nav_menu argumentumok.
 	 * @return string|null
@@ -84,23 +89,30 @@ class AMM_Integrations {
 			return $output;
 		}
 
+		// Ha a téma kifejezetten konténer nélkül kéri a menüt, ne tegyünk
+		// köré sajátot – különben szétesik a téma elrendezése.
+		$container = 'none';
+
+		if ( isset( $args->container ) && $args->container ) {
+			$container = $args->container;
+		} elseif ( ! isset( $args->container ) ) {
+			$container = 'nav';
+		}
+
 		$html = AMM_Renderer::render(
 			$menu_id,
 			array(
-				'container'       => isset( $args->container ) && $args->container ? $args->container : 'nav',
+				'container'       => $container,
 				'container_class' => isset( $args->container_class ) ? $args->container_class : '',
 				'container_id'    => isset( $args->container_id ) ? $args->container_id : '',
 				'menu_class'      => isset( $args->menu_class ) ? $args->menu_class : '',
+				'menu_id'         => isset( $args->menu_id ) ? $args->menu_id : '',
 				'depth'           => isset( $args->depth ) ? (int) $args->depth : 0,
 			)
 		);
 
 		if ( '' === $html ) {
 			return $output;
-		}
-
-		if ( ! empty( $args->echo ) ) {
-			echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Kirajzoláskor escape-elve.
 		}
 
 		return $html;

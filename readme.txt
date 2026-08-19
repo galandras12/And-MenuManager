@@ -4,7 +4,7 @@ Tags: menu, navigation, menük, navigáció, performance
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.5.1
+Stable tag: 0.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,11 @@ Ha a szülő oldalon be van kapcsolva az automatikus aloldal-kezelés, az új ol
 Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában; e fölött automatikusan szintenkénti lekérdezésre vált. A küszöb a beállításokban módosítható.
 
 == Changelog ==
+
+= 0.5.2 =
+* Javítva: a sablonpozícióhoz (pl. „Elsődleges menü”) rendelt menü kétszer jelent meg a látogatói oldalon. A plugin kiírta a menüt, majd a WordPress a visszaadott értéket még egyszer kiírta.
+* A téma menü-azonosítója (menu_id) mostantól rákerül a listára, így a téma CSS-e (pl. #primary-menu) továbbra is illeszkedik.
+* Ha a téma kifejezetten konténer nélkül kéri a menüt, a plugin sem tesz köré sajátot.
 
 = 0.5.1 =
 * Javítva: a menüfa visszaugrott a tetejére, valahányszor rákattintottál egy menüpontra vagy mentettél. A kijelölés mostantól nem építi újra a fát, a többi művelet pedig megőrzi a görgetési pozíciót.
