@@ -32,6 +32,7 @@ class AMM_Menu_Repository {
 			'cache_ttl'     => HOUR_IN_SECONDS,
 			'hide_private'  => true,
 			'collapse_subs' => true,
+			'source'        => array(),
 		);
 	}
 
@@ -70,6 +71,20 @@ class AMM_Menu_Repository {
 		$settings['style'] = in_array( $settings['style'], $allowed_style, true ) ? $settings['style'] : 'vertical';
 
 		$settings['excluded'] = array_values( array_unique( array_filter( array_map( 'intval', (array) $settings['excluded'] ) ) ) );
+
+		// Az eredet jelölése (pl. melyik WordPress menüből emeltük át).
+		$source = is_array( $settings['source'] ) ? $settings['source'] : array();
+
+		$settings['source'] = array();
+
+		if ( ! empty( $source['type'] ) ) {
+			$settings['source'] = array(
+				'type'    => sanitize_key( $source['type'] ),
+				'term_id' => isset( $source['term_id'] ) ? (int) $source['term_id'] : 0,
+				'slug'    => isset( $source['slug'] ) ? sanitize_title( $source['slug'] ) : '',
+				'checked' => isset( $source['checked'] ) ? sanitize_text_field( $source['checked'] ) : '',
+			);
+		}
 
 		return $settings;
 	}

@@ -50,6 +50,8 @@ Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában
 == Changelog ==
 
 = 0.3 =
+* A „WordPress menük átemelése” újrafuttatható: a már átemelt menüket megkeresi és összeveti a WordPress menüvel, csak a hiányzó menüpontokat pótolja – nem hoz létre másolatokat. A kézzel hozzáadott elemeket nem bántja.
+* Azonos nevű menü létrehozásakor buborék kérdez rá, hogy tényleg kell-e még egy ugyanilyen nevű menü.
 * A hosszabb műveletek (WordPress menük átemelése, gyorsítótár ürítése, indexépítés, árva elemek törlése, tömeges hozzáadás) futás közben pörgő ikont mutatnak a gombon, és a felület tetején is látszik, hogy folyamatban vannak.
 * A futó művelet gombja a befejezésig letiltva marad, így nem indítható kétszer.
 

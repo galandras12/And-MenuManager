@@ -162,6 +162,9 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 ## Verziók
 
 ### 0.3
+- **A „WordPress menük átemelése” újrafuttatható, és nem duplikál.** A korábban átemelt menüket megkeresi (elmentett eredet, majd slug és név szerint – így a 0.3 előtt átemelt menük is felismerhetők), összeveti a WordPress menü tartalmával, és **csak a hiányzó menüpontokat pótolja**. A kézzel hozzáadott elemeket érintetlenül hagyja, csak jelenti őket. A művelet végén összefoglalót ad: hány menü jött létre, hány lett újraellenőrizve, hány menüpont pótlódott.
+- A sablonpozíciót az újraellenőrzés csak akkor tölti ki, ha az még üres – a szándékosan másra állított pozíciót nem írja felül.
+- **Azonos nevű menü létrehozásakor buborék kérdez rá:** „Ezen a néven már van egy menü… Szeretnél létrehozni még egyet ugyanezen a néven?” Az ellenőrzés a szerveren fut, így a szűrt vagy lapozott lista sem téveszti meg. Ha az ellenőrzés nem fut le, nem blokkolja a munkát.
 - A hosszabb műveletek futás közben **pörgő ikont** mutatnak a megnyomott gombon (a felirat is átvált, pl. „Átemelés folyamatban…”), és a felület tetején egy folyamatjelző sáv is megjelenik. Érintett műveletek: WordPress menük átemelése, gyorsítótár ürítése, oldalindex előmelegítése, árva elemek törlése, kijelölt oldalak tömeges hozzáadása.
 - A futó művelet gombja a befejezésig letiltva marad, így egy kattintással nem indítható el kétszer.
 - A jelzés `aria-busy` és `aria-live` attribútumokkal képernyőolvasóval is követhető, és tiszteletben tartja a csökkentett mozgás (`prefers-reduced-motion`) beállítást.
