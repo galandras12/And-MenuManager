@@ -41,6 +41,7 @@ class AMM_Integrations {
 				'depth'     => 0,
 				'class'     => '',
 				'container' => 'nav',
+				'compat'    => '',
 			),
 			$atts,
 			'amm_menu'
@@ -59,6 +60,7 @@ class AMM_Integrations {
 				'depth'      => (int) $atts['depth'],
 				'menu_class' => sanitize_text_field( $atts['class'] ),
 				'container'  => sanitize_key( $atts['container'] ),
+				'compat'     => ! empty( $atts['compat'] ) && 'false' !== $atts['compat'],
 			)
 		);
 	}
@@ -108,6 +110,17 @@ class AMM_Integrations {
 				'menu_class'      => isset( $args->menu_class ) ? $args->menu_class : '',
 				'menu_id'         => isset( $args->menu_id ) ? $args->menu_id : '',
 				'depth'           => isset( $args->depth ) ? (int) $args->depth : 0,
+				/**
+				 * Téma-kompatibilis kimenet a sablonpozíciókon.
+				 *
+				 * Alapból bekapcsolva: a WordPress beépített menüjével
+				 * azonos osztályokat adunk ki, hogy a téma stílusai és
+				 * szkriptjei változatlanul működjenek.
+				 *
+				 * @param bool   $compat   Kompatibilis mód.
+				 * @param string $location Sablonpozíció kulcsa.
+				 */
+				'compat'          => apply_filters( 'amm_theme_location_compat', true, $args->theme_location ),
 			)
 		);
 

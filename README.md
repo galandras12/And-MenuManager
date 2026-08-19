@@ -161,6 +161,12 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 
 ## Verziók
 
+### 0.5.3
+- **Javítva: a sablonpozíciós menü szétesett a témában.** A plugin saját osztályokkal (`amm-item`, `amm-submenu`, `amm-link`) és egy extra nyitógombbal adta ki a menüt, amit a téma CSS-e nem ismert fel – ezért csúsztak szét a menüpontok. Sablonpozíción a kimenet mostantól **a WordPress beépített menüjével azonos**: `menu-item`, `menu-item-type-*`, `menu-item-object-*`, `menu-item-has-children`, `sub-menu`, `current-menu-item`, `current-menu-ancestor`, `current-menu-parent`. A link csupasz `<a href>`, extra elem nélkül, és nem kerül bele saját nyitógomb – az almenüket a téma saját szkriptje kezeli, ahogy a beépített menünél is.
+- A menüpont egyedi CSS osztálya továbbra is megmarad, a plugin sajátjai nem kerülnek ki.
+- Ez a kimenet a shortcode-ból is kérhető: `[amm_menu id="fomenu" compat="1"]`. A widget, a blokk és az alapértelmezett shortcode továbbra is a plugin saját, önálló stílusát használja.
+- Szűrővel kikapcsolható: `add_filter( 'amm_theme_location_compat', '__return_false' );`
+
 ### 0.5.2
 - **Javítva: a menü kétszer jelent meg a látogatói oldalon**, ha sablonpozícióhoz (pl. „Elsődleges menü”) volt rendelve. A `pre_wp_nav_menu` szűrő kiírta a menüt *és* vissza is adta, a WordPress pedig a visszaadott értéket még egyszer kiírta. A szűrő mostantól csak visszaad — a kiírás a WordPress dolga.
 - A téma `menu_id` értéke rákerül a `<ul>` elemre, így a témára írt CSS (pl. `#primary-menu`) továbbra is illeszkedik.
