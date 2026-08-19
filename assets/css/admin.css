@@ -1000,3 +1000,29 @@
 	flex: 1 1 auto;
 	word-break: break-word;
 }
+
+/* --- Új elem kiemelése --- */
+.amm-node__row.is-flash {
+	animation: amm-flash 2.4s ease;
+}
+
+@keyframes amm-flash {
+	0%, 60% {
+		background: var(--amm-accent-soft);
+		border-color: var(--amm-accent);
+		box-shadow: 0 0 0 3px var(--amm-accent-soft);
+	}
+	100% {
+		background: transparent;
+		border-color: transparent;
+		box-shadow: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.amm-node__row.is-flash {
+		animation: none;
+		background: var(--amm-accent-soft);
+		border-color: var(--amm-accent);
+	}
+}

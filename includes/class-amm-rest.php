@@ -478,6 +478,9 @@ class AMM_Rest {
 		// Sok elem egyszerre: a gyorsítótár egyszer ürüljön, a végén.
 		AMM_Cache::suspend();
 
+		$object_map = AMM_Item_Repository::map_objects( $menu_id );
+		$placements = array();
+
 		foreach ( $items as $data ) {
 			if ( ! is_array( $data ) ) {
 				continue;
@@ -486,9 +489,21 @@ class AMM_Rest {
 			$object_id = isset( $data['object_id'] ) ? (int) $data['object_id'] : 0;
 			$type      = isset( $data['type'] ) ? $data['type'] : 'post_type';
 
-			if ( 'post_type' === $type && $object_id && empty( $data['allow_duplicate'] ) && AMM_Item_Repository::exists_in_menu( $menu_id, $object_id ) ) {
+			if ( 'post_type' === $type && $object_id && empty( $data['allow_duplicate'] ) && isset( $object_map[ $object_id ] ) ) {
 				++$skipped;
 				continue;
+			}
+
+			// Az oldal a menüben már meglévő legközelebbi őse alá kerül,
+			// nem a menü aljára – enélkül egy nagy menüben gyakorlatilag
+			// megtalálhatatlan lenne az újonnan hozzáadott elem.
+			if ( ! isset( $data['parent_id'] ) && 'post_type' === $type && $object_id ) {
+				$placement = AMM_Item_Repository::find_ancestor_item( $object_id, isset( $data['object_type'] ) ? $data['object_type'] : 'page', $object_map );
+
+				if ( $placement ) {
+					$data['parent_id']       = $placement['item_id'];
+					$placements[ $object_id ] = $placement['title'];
+				}
 			}
 
 			if ( ! isset( $data['auto_children'] ) && 'post_type' === $type ) {
@@ -509,6 +524,10 @@ class AMM_Rest {
 			}
 
 			$created[] = $new_id;
+
+			if ( $object_id ) {
+				$object_map[ $object_id ] = $new_id;
+			}
 		}
 
 		AMM_Item_Repository::flush_touched();
@@ -516,10 +535,11 @@ class AMM_Rest {
 
 		return rest_ensure_response(
 			array(
-				'created' => $created,
-				'skipped' => $skipped,
-				'tree'    => AMM_Tree::editor_tree( $menu_id ),
-				'stats'   => AMM_Tree::stats( $menu_id ),
+				'created'    => $created,
+				'skipped'    => $skipped,
+				'placements' => $placements,
+				'tree'       => AMM_Tree::editor_tree( $menu_id ),
+				'stats'      => AMM_Tree::stats( $menu_id ),
 			)
 		);
 	}
@@ -876,6 +896,27 @@ class AMM_Rest {
 
 				$result            = AMM_Automations::sync_children_all( $depth );
 				$result['message'] = self::sync_message( $result['updated'], $result['already'] );
+
+				return rest_ensure_response( $result );
+
+			case 'fill-missing':
+				$depth   = (int) $request->get_param( 'depth' );
+				$menu_id = (int) $request->get_param( 'menu_id' );
+
+				if ( $menu_id ) {
+					$result = AMM_Automations::fill_missing_children( $menu_id, $depth );
+
+					if ( is_wp_error( $result ) ) {
+						return $result;
+					}
+				} else {
+					$result = AMM_Automations::fill_missing_all( $depth );
+				}
+
+				$result['message'] = $result['added']
+					/* translators: %d: menüpontok száma. */
+					? sprintf( __( '%d hiányzó aloldal felvéve a megfelelő menüpont alá.', 'and-menumanager' ), $result['added'] )
+					: __( 'Nem található hiányzó aloldal – minden a helyén van.', 'and-menumanager' );
 
 				return rest_ensure_response( $result );
 

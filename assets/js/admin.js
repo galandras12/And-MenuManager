@@ -766,13 +766,28 @@
 			state.tree = data.tree;
 			state.stats = data.stats;
 			state.picker.selected = {};
+
+			if ( data.created.length ) {
+				state.selectedItem = data.created[ 0 ];
+			}
+
 			renderMenusView();
 			loadPicker();
 
+			if ( data.created.length ) {
+				revealItem( data.created[ 0 ] );
+			}
+
+			var places = data.placements || {};
+			var names = Object.keys( places ).map( function ( key ) {
+				return places[ key ];
+			} );
+			var where = names.length ? ' a(z) „' + names[ 0 ] + '” menüpont alá' : ' a menü végére';
+
 			if ( data.skipped ) {
-				toast( data.created.length + ' hozzáadva, ' + data.skipped + ' már szerepelt a menüben.' );
+				toast( data.created.length + ' hozzáadva' + where + ', ' + data.skipped + ' már szerepelt a menüben.' );
 			} else {
-				toast( data.created.length + ' elem hozzáadva.', 'success' );
+				toast( data.created.length + ' elem hozzáadva' + where + '.', 'success' );
 			}
 		} ).catch( fail );
 	}
@@ -1056,6 +1071,31 @@
 			renderMenusView();
 			toast( T.saved, 'success' );
 		} ).catch( fail );
+	}
+
+	/**
+	 * Odagörget egy menüelemhez a fában, és megvillantja.
+	 *
+	 * Nagy menüben enélkül nem derülne ki, hová került az új elem.
+	 */
+	function revealItem( itemId ) {
+		window.setTimeout( function () {
+			var row = document.querySelector( '.amm-node__row[data-id="' + itemId + '"]' );
+
+			if ( ! row ) {
+				return;
+			}
+
+			if ( row.scrollIntoView ) {
+				row.scrollIntoView( { block: 'center' } );
+			}
+
+			row.classList.add( 'is-flash' );
+
+			window.setTimeout( function () {
+				row.classList.remove( 'is-flash' );
+			}, 2400 );
+		}, 80 );
 	}
 
 	/* ---------------------------------------------------------------
@@ -2113,6 +2153,29 @@
 				h( 'button', {
 					class: 'amm-btn',
 					type: 'button',
+					text: 'Hiányzó aloldalak pótlása',
+					title: 'A menüben szereplő oldalak hiányzó aloldalait felveszi valódi menüpontként, a megfelelő menüpont alá',
+					onClick: function ( event ) {
+						var message = '';
+
+						runTask( event.currentTarget, 'Pótlás folyamatban…', function () {
+							return api( '/tools/fill-missing', {
+								method: 'POST',
+								body: { menu_id: menu.id, depth: 0 }
+							} ).then( function ( data ) {
+								message = data.message || T.saved;
+
+								return loadTree( menu.id );
+							} );
+						}, { watchAfterError: true, context: 'Aloldal-pótlás: ' + menu.name } ).then( function () {
+							renderMenusView();
+							toast( message, 'success' );
+						} ).catch( function () {} );
+					}
+				} ),
+				h( 'button', {
+					class: 'amm-btn',
+					type: 'button',
 					text: 'Aloldalak szinkronizálása',
 					title: 'Bekapcsolja az automatikus aloldal-kezelést minden olyan menüpontnál, aminek van aloldala',
 					onClick: function ( event ) {
@@ -2663,10 +2726,33 @@
 				h( 'p', {
 					class: 'amm-field__hint',
 					style: 'margin:0 0 8px',
-					text: 'Minden menüpontnál, aminek van aloldala, bekapcsolja az automatikus aloldal-kezelést a megadott mélységig – így a WordPress menüből kimaradt aloldalak is megjelennek, új menüpontok létrehozása nélkül.'
+					text: 'Két út ugyanahhoz: a „pótlás” valódi menüpontként veszi fel a hiányzó aloldalakat a megfelelő menüpont alá (átemelt, tételes menükhöz), a „szinkronizálás” pedig szabályt kapcsol be, ami az összes – és minden ezután létrehozott – aloldalt magától megjeleníti.'
 				} ),
 				syncSelect,
-				h( 'div', {},
+				h( 'div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
+					h( 'button', {
+						class: 'amm-btn',
+						type: 'button',
+						text: 'Hiányzó aloldalak pótlása (minden menü)',
+						title: 'Valódi menüpontként veszi fel a hiányzó aloldalakat a megfelelő menüpont alá',
+						onClick: function ( event ) {
+							var message = '';
+
+							runTask( event.currentTarget, 'Pótlás folyamatban…', function () {
+								return api( '/tools/fill-missing', {
+									method: 'POST',
+									body: { depth: syncDepth, menu_id: 0 }
+								} ).then( function ( data ) {
+									message = data.message || T.saved;
+
+									return loadMenus();
+								} );
+							}, { watchAfterError: true, context: 'Aloldal-pótlás' } ).then( function () {
+								renderSettingsView();
+								toast( message, 'success' );
+							} ).catch( function () {} );
+						}
+					} ),
 					h( 'button', {
 						class: 'amm-btn amm-btn--primary',
 						type: 'button',

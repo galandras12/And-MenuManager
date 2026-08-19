@@ -4,7 +4,7 @@ Tags: menu, navigation, menük, navigáció, performance
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.4
+Stable tag: 0.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,11 @@ Ha a szülő oldalon be van kapcsolva az automatikus aloldal-kezelés, az új ol
 Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában; e fölött automatikusan szintenkénti lekérdezésre vált. A küszöb a beállításokban módosítható.
 
 == Changelog ==
+
+= 0.5 =
+* Javítva: a „Tartalom hozzáadása” panelről felvett oldal a menü végére, gyökérszintre került ahelyett, hogy a saját ága alá kerülne. Mostantól a menüben már szereplő legközelebbi ős alá kerül.
+* A hozzáadás után a felület odagörget az új menüponthoz és megvillantja, az értesítés pedig kiírja, melyik menüpont alá került.
+* Új: „Hiányzó aloldalak pótlása” gomb menünként és minden menüre – a tételesen tárolt (pl. WordPressből átemelt) menükben felveszi a hiányzó aloldalakat a megfelelő menüpont alá.
 
 = 0.4 =
 * Javítva: a menük átemelése nagy menüknél elakadhatott, mert minden egyes menüpont után külön adatbázis-írás és teljes gyorsítótár-ürítés futott. A kötegelt műveletek most egyszer, a végén ürítenek.
