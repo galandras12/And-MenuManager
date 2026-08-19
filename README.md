@@ -161,6 +161,9 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 
 ## Verziók
 
+### 0.5.1
+- **Javítva: a fa visszaugrott a tetejére.** Egy menüpontra kattintva a felület újraépítette a teljes fát, így több száz elemnél minden kijelölés után vissza kellett görgetni. A kijelölés most már csak az érintett sorok jelölését és az oldalsó panelt frissíti, a fa DOM-ja marad; a többi újrarajzolás (mentés, hozzáadás, törlés, ki- és becsukás) pedig megőrzi a görgetési pozíciót a fában, a menülistában és a választóban is.
+
 ### 0.5
 - **Javítva: a hozzáadott oldal rossz helyre került.** A „Tartalom hozzáadása” panelről felvett oldal `parent_id = 0` értékkel mentődött, vagyis a menü **gyökérszintjének a végére** – egy több száz elemes menüben ez gyakorlatilag megtalálhatatlan. Mostantól a plugin felfelé haladva megkeresi az oldal legközelebbi olyan ősét, ami már szerepel a menüben, és az alá teszi.
 - **Odagörgetés és kiemelés.** Hozzáadás után a felület a fában odaugrik az új menüponthoz, megvillantja, és az értesítés is kiírja, melyik menüpont alá került.

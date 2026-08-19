@@ -66,6 +66,47 @@
 		return el;
 	}
 
+	/**
+	 * A görgethető listák pozíciójának megőrzése újrarajzoláskor.
+	 *
+	 * Enélkül minden mentés vagy kattintás visszaugrasztja a fát a
+	 * tetejére, ami több száz elemnél használhatatlanná teszi a felületet.
+	 */
+	var SCROLLABLES = [ '.amm-tree', '.amm-menulist', '.amm-picker__list', '.amm-log' ];
+
+	function captureScroll() {
+		var map = {};
+
+		SCROLLABLES.forEach( function ( selector ) {
+			var node = document.querySelector( selector );
+
+			if ( node ) {
+				map[ selector ] = node.scrollTop;
+			}
+		} );
+
+		return map;
+	}
+
+	function restoreScroll( map ) {
+		Object.keys( map ).forEach( function ( selector ) {
+			var node = document.querySelector( selector );
+
+			if ( node && map[ selector ] ) {
+				node.scrollTop = map[ selector ];
+			}
+		} );
+	}
+
+	function withScroll( callback ) {
+		var map = captureScroll();
+		var result = callback();
+
+		restoreScroll( map );
+
+		return result;
+	}
+
 	function clear( node ) {
 		while ( node.firstChild ) {
 			node.removeChild( node.firstChild );
@@ -1539,7 +1580,11 @@
 			onClick: function () {
 				state.selectedItem = node.id;
 				state.panel = 'item';
-				renderMenusView();
+
+				// Csak a kijelölés és az oldalsó panel frissül: a fa
+				// DOM-ja marad, így a görgetés a helyén marad.
+				updateSelection();
+				renderAside();
 			},
 			onDragstart: function ( event ) {
 				onDragStart( event, node, row );
@@ -1579,6 +1624,19 @@
 		}
 
 		return wrap;
+	}
+
+	/**
+	 * A kijelölt sor jelölésének frissítése a fa újraépítése nélkül.
+	 */
+	function updateSelection() {
+		var rows = document.querySelectorAll( '.amm-node__row' );
+
+		Array.prototype.forEach.call( rows, function ( row ) {
+			var isSelected = parseInt( row.dataset.id, 10 ) === state.selectedItem;
+
+			row.classList.toggle( 'is-selected', isSelected );
+		} );
 	}
 
 	function renderTreePanel() {
@@ -2286,11 +2344,13 @@
 			return;
 		}
 
-		var existing = container.querySelector( '.amm-panel--aside' );
+		withScroll( function () {
+			var existing = container.querySelector( '.amm-panel--aside' );
 
-		if ( existing ) {
-			container.replaceChild( renderAsidePanel(), existing );
-		}
+			if ( existing ) {
+				container.replaceChild( renderAsidePanel(), existing );
+			}
+		} );
 	}
 
 	function renderEditor() {
@@ -2300,14 +2360,16 @@
 			return;
 		}
 
-		var existing = container.querySelector( '.amm-panel--tree' );
-		var next = renderTreePanel();
+		withScroll( function () {
+			var existing = container.querySelector( '.amm-panel--tree' );
+			var next = renderTreePanel();
 
-		next.classList.add( 'amm-panel--tree' );
+			next.classList.add( 'amm-panel--tree' );
 
-		if ( existing ) {
-			container.replaceChild( next, existing );
-		}
+			if ( existing ) {
+				container.replaceChild( next, existing );
+			}
+		} );
 	}
 
 	/* ---------------------------------------------------------------
@@ -2315,6 +2377,8 @@
 	 * ------------------------------------------------------------ */
 
 	function renderMenusView() {
+		var scroll = captureScroll();
+
 		clear( root );
 
 		var header = h( 'div', { class: 'amm-header' },
@@ -2371,6 +2435,8 @@
 		if ( state.error ) {
 			showError( state.error );
 		}
+
+		restoreScroll( scroll );
 	}
 
 	function importCore( button ) {
