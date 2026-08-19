@@ -217,6 +217,7 @@ class AMM_Installer {
 		delete_option( 'amm_cache_version' );
 		delete_option( 'amm_tables_checked' );
 		delete_option( 'amm_health_report' );
+		delete_option( 'amm_error_log' );
 
 		AMM_Capabilities::remove_all_caps();
 		wp_clear_scheduled_hook( 'amm_daily_maintenance' );

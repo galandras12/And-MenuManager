@@ -645,12 +645,41 @@ class AMM_Item_Repository {
 	}
 
 	/**
+	 * Kötegelt művelet közben érintett menük.
+	 *
+	 * @var array
+	 */
+	private static $touched = array();
+
+	/**
 	 * Menü módosítási idejének frissítése és cache ürítés.
+	 *
+	 * Kötegelt művelet közben (felfüggesztett gyorsítótár) csak
+	 * feljegyezzük az érintett menüt, és a végén egyszer írjuk ki –
+	 * enélkül minden egyes elem külön adatbázis-írást okozna.
 	 *
 	 * @param int $menu_id Menü azonosító.
 	 * @return void
 	 */
 	private static function touch_menu( $menu_id ) {
+		if ( AMM_Cache::is_suspended() ) {
+			self::$touched[ (int) $menu_id ] = true;
+			AMM_Cache::flush(); // Csak megjelöli: a feloldáskor fut le.
+
+			return;
+		}
+
+		self::write_timestamp( $menu_id );
+		AMM_Cache::flush();
+	}
+
+	/**
+	 * Módosítási idő kiírása.
+	 *
+	 * @param int $menu_id Menü azonosító.
+	 * @return void
+	 */
+	private static function write_timestamp( $menu_id ) {
 		global $wpdb;
 
 		$wpdb->update(
@@ -660,7 +689,24 @@ class AMM_Item_Repository {
 			array( '%s' ),
 			array( '%d' )
 		);
+	}
 
-		AMM_Cache::flush();
+	/**
+	 * A kötegelt művelet során érintett menük kiírása.
+	 *
+	 * A gyorsítótár feloldása (AMM_Cache::resume) előtt kell hívni.
+	 *
+	 * @return int Az érintett menük száma.
+	 */
+	public static function flush_touched() {
+		$count = count( self::$touched );
+
+		foreach ( array_keys( self::$touched ) as $menu_id ) {
+			self::write_timestamp( $menu_id );
+		}
+
+		self::$touched = array();
+
+		return $count;
 	}
 }

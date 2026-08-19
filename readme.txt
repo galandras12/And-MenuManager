@@ -4,7 +4,7 @@ Tags: menu, navigation, menük, navigáció, performance
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.3
+Stable tag: 0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,14 @@ Ha a szülő oldalon be van kapcsolva az automatikus aloldal-kezelés, az új ol
 Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában; e fölött automatikusan szintenkénti lekérdezésre vált. A küszöb a beállításokban módosítható.
 
 == Changelog ==
+
+= 0.4 =
+* Javítva: a menük átemelése nagy menüknél elakadhatott, mert minden egyes menüpont után külön adatbázis-írás és teljes gyorsítótár-ürítés futott. A kötegelt műveletek most egyszer, a végén ürítenek.
+* Javítva: hiba esetén üres piros sáv jelenhetett meg üzenet nélkül. A hibaszöveg mostantól hálózati hibából és időtúllépésből is előáll.
+* Új: futó művelet közben élőben látszik a menük és menüpontok száma, nem kell frissíteni az oldalt.
+* Új: ha a kérés megszakad, de a szerver tovább dolgozik, a felület tovább követi a folyamatot, és annak végén magától frissül.
+* Új: „Aloldalak szinkronizálása” gomb menünként és minden menüre, választható mélységgel – a WordPress menüből kimaradt aloldalakat pótolja.
+* Új: hibanapló időbélyeggel a Beállítások oldal végén, .txt exporttal. A „Gyorsítótár ürítése” gomb ezt is kiüríti.
 
 = 0.3 =
 * A „WordPress menük átemelése” újrafuttatható: a már átemelt menüket megkeresi és összeveti a WordPress menüvel, csak a hiányzó menüpontokat pótolja – nem hoz létre másolatokat. A kézzel hozzáadott elemeket nem bántja.

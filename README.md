@@ -161,6 +161,14 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 
 ## Verziók
 
+### 0.4
+- **Javítva: az átemelés elakadása nagy menüknél.** Minden egyes menüpont beszúrása után lefutott egy külön adatbázis-írás *és* egy teljes gyorsítótár-ürítés (opció-írással). Ezer menüpontnál ez ezer fölösleges írás volt, ami időtúllépésbe vihette a kérést – miközben a szerver a háttérben tovább dolgozott. A kötegelt műveletek (átemelés, tömeges hozzáadás, aloldal-szinkron) mostantól felfüggesztik a gyorsítótárat, és egyszer, a végén ürítenek.
+- **Javítva: üres hibasáv.** Hálózati hiba vagy időtúllépés esetén a hibaobjektum gyakran üres, ezért a piros sáv szöveg nélkül jelent meg. A hibaszöveg most több forrásból áll össze (üzenet, hibakód, HTTP állapot), és soha nem üres.
+- **Élő állapotkövetés.** Hosszú művelet közben a folyamatsáv 3 másodpercenként mutatja az aktuális menü- és menüpontszámot, a bal oldali lista elemszámai pedig a felület újraépítése nélkül frissülnek – nem kell újratölteni az oldalt.
+- **Követés megszakadt kérés után.** Ha a kérés elhal, de a szerver tovább dolgozik, a felület figyeli a menüpontok számát; amikor az három körön át nem változik, lezárja a folyamatot és frissít. A követés kézzel is leállítható.
+- **Aloldalak szinkronizálása.** Új gomb menünként (Menü fül) és az összes menüre (Beállítások → Karbantartás), választható mélységgel. Minden olyan menüpontnál bekapcsolja az automatikus aloldal-kezelést, aminek van aloldala – így a WordPress menüből kimaradt aloldalak is megjelennek, új menüpontok létrehozása nélkül.
+- **Hibanapló.** A Beállítások oldal végén időbélyeggel gyűjti a szerver- és felületoldali hibákat (legfeljebb 200 bejegyzés), `.txt` fájlba exportálható. A „Gyorsítótár ürítése” gomb a naplót is kiüríti.
+
 ### 0.3
 - **A „WordPress menük átemelése” újrafuttatható, és nem duplikál.** A korábban átemelt menüket megkeresi (elmentett eredet, majd slug és név szerint – így a 0.3 előtt átemelt menük is felismerhetők), összeveti a WordPress menü tartalmával, és **csak a hiányzó menüpontokat pótolja**. A kézzel hozzáadott elemeket érintetlenül hagyja, csak jelenti őket. A művelet végén összefoglalót ad: hány menü jött létre, hány lett újraellenőrizve, hány menüpont pótlódott.
 - A sablonpozíciót az újraellenőrzés csak akkor tölti ki, ha az még üres – a szándékosan másra állított pozíciót nem írja felül.

@@ -957,3 +957,46 @@
 		animation: none;
 	}
 }
+
+/* --- Élő állapot a folyamatsávban --- */
+.amm-alert__detail {
+	color: var(--amm-text-soft);
+	font-variant-numeric: tabular-nums;
+}
+
+/* --- Hibanapló --- */
+.amm-log {
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid var(--amm-border);
+	border-radius: var(--amm-radius-sm);
+}
+
+.amm-log__row {
+	display: flex;
+	gap: 10px;
+	align-items: baseline;
+	padding: 7px 10px;
+	border-bottom: 1px solid var(--amm-border);
+	font-size: 12px;
+}
+
+.amm-log__row:last-child {
+	border-bottom: 0;
+}
+
+.amm-log__row:nth-child(odd) {
+	background: var(--amm-bg-sunken);
+}
+
+.amm-log__time {
+	flex: none;
+	color: var(--amm-text-soft);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.amm-log__message {
+	flex: 1 1 auto;
+	word-break: break-word;
+}
