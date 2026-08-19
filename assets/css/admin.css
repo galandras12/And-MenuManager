@@ -798,3 +798,40 @@
 	clip: rect(0 0 0 0);
 	white-space: nowrap;
 }
+
+/* --- Hibasáv --- */
+.amm-alert {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 0 0 16px;
+	padding: 11px 14px;
+	border: 1px solid var(--amm-border);
+	border-left: 3px solid var(--amm-danger);
+	border-radius: var(--amm-radius-sm);
+	background: rgba(220, 38, 38, .07);
+	color: var(--amm-text);
+	font-size: 13px;
+}
+
+.amm-alert--error {
+	border-left-color: var(--amm-danger);
+}
+
+/* --- Menü létrehozó űrlap --- */
+.amm-createform {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--amm-border);
+}
+
+.amm-createform .amm-field__label {
+	margin-bottom: 4px;
+}
+
+.amm-createform__actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 8px;
+}

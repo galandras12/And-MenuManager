@@ -4,7 +4,7 @@ Tags: menu, navigation, menük, navigáció, performance
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.1
+Stable tag: 0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,13 @@ Ha a szülő oldalon be van kapcsolva az automatikus aloldal-kezelés, az új ol
 Az alapértelmezett beállítás 25 000 oldalig tart teljes indexet memóriában; e fölött automatikusan szintenkénti lekérdezésre vált. A küszöb a beállításokban módosítható.
 
 == Changelog ==
+
+= 0.2 =
+* Javítva: a REST hívások sima (nem "szép") permalink-beállítás mellett elromlottak, ezért az újonnan létrehozott menü nem jelent meg a listában.
+* Az „Új menü” létrehozása mostantól a felületbe épített beviteli mezővel történik, felugró böngészőablak helyett.
+* A menük a Beállítások oldalról is létrehozhatók.
+* A hibák tartós hibasávban jelennek meg, nem csak eltűnő értesítésben.
+* Önjavító adatbázis-ellenőrzés és diagnosztikai panel a Beállítások → Állapot alatt.
 
 = 0.1 =
 * Első kiadás.

@@ -132,6 +132,9 @@ class AMM_Admin {
 			return;
 		}
 
+		// A saját képernyőkön ellenőrizzük, hogy a táblák megvannak-e.
+		AMM_Installer::verify_tables( true );
+
 		wp_enqueue_style( 'amm-admin', AMM_URL . 'assets/css/admin.css', array(), AMM_VERSION );
 		wp_enqueue_script( 'amm-admin', AMM_URL . 'assets/js/admin.js', array( 'wp-api-fetch', 'wp-i18n' ), AMM_VERSION, true );
 
@@ -142,6 +145,7 @@ class AMM_Admin {
 			'AMM_DATA',
 			array(
 				'root'       => esc_url_raw( rest_url( AMM_REST_NAMESPACE ) ),
+				'namespace'  => AMM_REST_NAMESPACE,
 				'nonce'      => wp_create_nonce( 'wp_rest' ),
 				'view'       => $view,
 				'adminUrl'   => admin_url( 'admin.php?page=' . self::SLUG ),

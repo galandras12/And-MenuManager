@@ -159,6 +159,18 @@ blocks/menu/                 Gutenberg blokk
 
 Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; egyébként transient). Az érvénytelenítés verziószám-léptetéssel történik, így soha nem kell több ezer kulcsot törölni. A cache automatikusan ürül, ha egy oldal címe, slugja, szülője, sorrendje vagy státusza megváltozik – más mentések nem indítanak felesleges újraépítést.
 
+## Verziók
+
+### 0.2
+- **Javítva:** a REST hívások sima (nem „szép”) permalink-beállítás mellett elromlottak. A REST gyökér ilyenkor maga is lekérdezés-paraméter (`?rest_route=…`), így a hozzáfűzött paraméterek egy második `?`-et eredményeztek, és az útvonal érvénytelen lett. Emiatt az új menü létrejött ugyan az adatbázisban, de a lista sosem töltődött be, így nem jelent meg. A felület mostantól a `wp.apiFetch`-et használja, ami mindkét URL-formát kezeli.
+- Az **Új menü** létrehozása a felületbe épített beviteli mezővel történik, felugró böngészőablak helyett (Enter is elküldi, Esc bezárja).
+- Menü a **Beállítások** oldalról is létrehozható.
+- A hibák tartós hibasávban jelennek meg a felület tetején, nem csak néhány másodpercre felvillanó értesítésben, és a szerver hibaüzenete is látszik.
+- **Önjavító adatbázis-ellenőrzés:** ha a táblák hiányoznak (pl. félbemaradt aktiválás miatt), a plugin újra létrehozza őket. A Beállítások → Állapot panel kiírja a táblák, a séma és a plugin állapotát.
+
+### 0.1
+- Első kiadás.
+
 ## Követelmények
 
 - WordPress 5.8+

@@ -828,12 +828,20 @@ class AMM_Rest {
 	 * @return WP_REST_Response
 	 */
 	public function get_health() {
+		global $wpdb;
+
 		$stored = get_option( 'amm_health_report', array() );
 
 		return rest_ensure_response(
 			array(
 				'report'    => AMM_Automations::health_report(),
 				'generated' => isset( $stored['generated'] ) ? $stored['generated'] : '',
+				'database'  => array(
+					'tables_ok'  => AMM_Installer::tables_exist(),
+					'db_version' => (string) get_option( 'amm_db_version', '' ),
+					'version'    => AMM_VERSION,
+					'last_error' => (string) $wpdb->last_error,
+				),
 				'index'     => array(
 					'pages'     => AMM_Pages::count( 'page' ),
 					'indexed'   => AMM_Pages::use_index( 'page' ),
