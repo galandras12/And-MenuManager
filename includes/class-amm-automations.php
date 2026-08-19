@@ -362,6 +362,149 @@ class AMM_Automations {
 	}
 
 	/**
+	 * Hiányzó aloldalak pótlása valódi menüelemként.
+	 *
+	 * Végigjárja a menü oldalra mutató elemeit, és minden olyan aloldalt
+	 * felvesz alájuk, ami még nincs a menüben. Azokhoz a menükhöz való,
+	 * amelyek tételesen tárolják a menüpontokat (pl. a WordPressből
+	 * átemelt menük), és nem szabályalapúak.
+	 *
+	 * @param int $menu_id Menü azonosító.
+	 * @param int $depth   Meddig menjen le (0 = korlátlan).
+	 * @return array|WP_Error
+	 */
+	public static function fill_missing_children( $menu_id, $depth = 0 ) {
+		$menu = AMM_Menu_Repository::get( $menu_id );
+
+		if ( ! $menu ) {
+			return new WP_Error( 'amm_not_found', __( 'A menü nem található.', 'and-menumanager' ), array( 'status' => 404 ) );
+		}
+
+		$items    = AMM_Item_Repository::get_for_menu( $menu_id );
+		$map      = AMM_Item_Repository::map_objects( $menu_id );
+		$excluded = array_flip( $menu['settings']['excluded'] );
+		$depth    = max( 0, (int) $depth );
+		$added    = 0;
+		$scanned  = 0;
+		$queue    = array();
+
+		foreach ( $items as $item ) {
+			if ( 'post_type' === $item['type'] && $item['object_id'] ) {
+				$queue[] = array(
+					'item_id'   => (int) $item['id'],
+					'object_id' => (int) $item['object_id'],
+					'type'      => $item['object_type'],
+					'level'     => 1,
+				);
+			}
+		}
+
+		AMM_Cache::suspend();
+
+		$guard = 0;
+
+		while ( $queue ) {
+			$entry = array_shift( $queue );
+
+			if ( ++$guard > 50000 ) {
+				break; // Végtelen ciklus elleni védelem.
+			}
+
+			if ( $depth > 0 && $entry['level'] > $depth ) {
+				continue;
+			}
+
+			$children = AMM_Pages::get_children( $entry['object_id'], $entry['type'] );
+
+			foreach ( $children as $child ) {
+				++$scanned;
+
+				if ( isset( $excluded[ $child['id'] ] ) ) {
+					continue;
+				}
+
+				if ( isset( $map[ $child['id'] ] ) ) {
+					// Már a menüben van – onnan megyünk tovább lefelé.
+					$queue[] = array(
+						'item_id'   => (int) $map[ $child['id'] ],
+						'object_id' => (int) $child['id'],
+						'type'      => $entry['type'],
+						'level'     => $entry['level'] + 1,
+					);
+
+					continue;
+				}
+
+				$new_id = AMM_Item_Repository::insert(
+					$menu_id,
+					array(
+						'type'          => 'post_type',
+						'object_type'   => $entry['type'],
+						'object_id'     => (int) $child['id'],
+						'parent_id'     => (int) $entry['item_id'],
+						'auto_children' => 0,
+					)
+				);
+
+				if ( is_wp_error( $new_id ) ) {
+					AMM_Log::add( $new_id->get_error_message(), sprintf( 'Aloldal-pótlás: %s', $menu['name'] ) );
+					continue;
+				}
+
+				$map[ $child['id'] ] = $new_id;
+				++$added;
+
+				$queue[] = array(
+					'item_id'   => $new_id,
+					'object_id' => (int) $child['id'],
+					'type'      => $entry['type'],
+					'level'     => $entry['level'] + 1,
+				);
+			}
+		}
+
+		AMM_Item_Repository::flush_touched();
+		AMM_Cache::resume();
+		AMM_Cache::flush();
+
+		return array(
+			'menu_id' => (int) $menu_id,
+			'name'    => $menu['name'],
+			'added'   => $added,
+			'scanned' => $scanned,
+		);
+	}
+
+	/**
+	 * Hiányzó aloldalak pótlása minden menüben.
+	 *
+	 * @param int $depth Mélység (0 = korlátlan).
+	 * @return array
+	 */
+	public static function fill_missing_all( $depth = 0 ) {
+		$menus   = AMM_Menu_Repository::all( array( 'per_page' => 500 ) );
+		$results = array();
+		$added   = 0;
+
+		foreach ( $menus['items'] as $menu ) {
+			$result = self::fill_missing_children( $menu['id'], $depth );
+
+			if ( is_wp_error( $result ) ) {
+				continue;
+			}
+
+			$added    += $result['added'];
+			$results[] = $result;
+		}
+
+		return array(
+			'menus' => $results,
+			'added' => $added,
+			'count' => count( $results ),
+		);
+	}
+
+	/**
 	 * Aloldalak rászinkronizálása minden menüre.
 	 *
 	 * @param int $depth Mélység (0 = korlátlan).

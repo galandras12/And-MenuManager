@@ -622,6 +622,79 @@ class AMM_Item_Repository {
 	}
 
 	/**
+	 * Bejegyzés-azonosító => menüelem-azonosító térkép egy menüre.
+	 *
+	 * Egyetlen lekérdezésből, hogy a tömeges hozzáadás meg tudja találni
+	 * az új elem helyét a meglévő fában.
+	 *
+	 * @param int $menu_id Menü azonosító.
+	 * @return array
+	 */
+	public static function map_objects( $menu_id ) {
+		global $wpdb;
+
+		$table = AMM_Installer::items_table();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, object_id FROM {$table} WHERE menu_id = %d AND object_id > 0 ORDER BY id ASC",
+				(int) $menu_id
+			),
+			ARRAY_A
+		);
+		// phpcs:enable
+
+		$map = array();
+
+		foreach ( (array) $rows as $row ) {
+			$object_id = (int) $row['object_id'];
+
+			if ( ! isset( $map[ $object_id ] ) ) {
+				$map[ $object_id ] = (int) $row['id'];
+			}
+		}
+
+		return $map;
+	}
+
+	/**
+	 * A menüben már meglévő legközelebbi ős megkeresése egy oldalhoz.
+	 *
+	 * Így az újonnan hozzáadott oldal a saját ága alá kerül, nem a menü
+	 * végére – nagy menüben ez a különbség a megtalálható és a
+	 * megtalálhatatlan között.
+	 *
+	 * @param int    $object_id   Bejegyzés azonosító.
+	 * @param string $object_type Bejegyzéstípus.
+	 * @param array  $object_map  Bejegyzés => menüelem térkép.
+	 * @return array|null
+	 */
+	public static function find_ancestor_item( $object_id, $object_type, $object_map ) {
+		$node  = AMM_Pages::get_node( $object_id, $object_type );
+		$guard = 0;
+
+		while ( $node && $node['parent'] && ++$guard < 50 ) {
+			$parent = AMM_Pages::get_node( $node['parent'], $object_type );
+
+			if ( ! $parent ) {
+				break;
+			}
+
+			if ( isset( $object_map[ $parent['id'] ] ) ) {
+				return array(
+					'item_id' => (int) $object_map[ $parent['id'] ],
+					'title'   => $parent['title'],
+				);
+			}
+
+			$node = $parent;
+		}
+
+		return null;
+	}
+
+	/**
 	 * Szerepel-e már a bejegyzés a menüben?
 	 *
 	 * @param int $menu_id   Menü azonosító.

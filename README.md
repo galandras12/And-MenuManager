@@ -161,6 +161,13 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 
 ## Verziók
 
+### 0.5
+- **Javítva: a hozzáadott oldal rossz helyre került.** A „Tartalom hozzáadása” panelről felvett oldal `parent_id = 0` értékkel mentődött, vagyis a menü **gyökérszintjének a végére** – egy több száz elemes menüben ez gyakorlatilag megtalálhatatlan. Mostantól a plugin felfelé haladva megkeresi az oldal legközelebbi olyan ősét, ami már szerepel a menüben, és az alá teszi.
+- **Odagörgetés és kiemelés.** Hozzáadás után a felület a fában odaugrik az új menüponthoz, megvillantja, és az értesítés is kiírja, melyik menüpont alá került.
+- **Új: „Hiányzó aloldalak pótlása”.** Menünként (Menü fül) és minden menüre (Beállítások → Karbantartás). Végigjárja a menü oldalra mutató elemeit, és minden hiányzó aloldalt felvesz alájuk valódi menüpontként, a kizárásokat tiszteletben tartva. Ez a tételesen tárolt, WordPressből átemelt menükhöz való.
+
+  A **„pótlás”** és a **„szinkronizálás”** két út ugyanahhoz a célhoz: a pótlás valódi menüpontokat hoz létre (a meglévő, tételes szerkezetbe illeszkedve), a szinkronizálás pedig szabályt kapcsol be, ami az összes – és minden ezután létrehozott – aloldalt magától megjeleníti, sorok létrehozása nélkül.
+
 ### 0.4
 - **Javítva: az átemelés elakadása nagy menüknél.** Minden egyes menüpont beszúrása után lefutott egy külön adatbázis-írás *és* egy teljes gyorsítótár-ürítés (opció-írással). Ezer menüpontnál ez ezer fölösleges írás volt, ami időtúllépésbe vihette a kérést – miközben a szerver a háttérben tovább dolgozott. A kötegelt műveletek (átemelés, tömeges hozzáadás, aloldal-szinkron) mostantól felfüggesztik a gyorsítótárat, és egyszer, a végén ürítenek.
 - **Javítva: üres hibasáv.** Hálózati hiba vagy időtúllépés esetén a hibaobjektum gyakran üres, ezért a piros sáv szöveg nélkül jelent meg. A hibaszöveg most több forrásból áll össze (üzenet, hibakód, HTTP állapot), és soha nem üres.
