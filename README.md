@@ -161,6 +161,11 @@ Minden menü feloldott fája gyorsítótárba kerül (objektum-cache, ha van; eg
 
 ## Verziók
 
+### 0.3
+- A hosszabb műveletek futás közben **pörgő ikont** mutatnak a megnyomott gombon (a felirat is átvált, pl. „Átemelés folyamatban…”), és a felület tetején egy folyamatjelző sáv is megjelenik. Érintett műveletek: WordPress menük átemelése, gyorsítótár ürítése, oldalindex előmelegítése, árva elemek törlése, kijelölt oldalak tömeges hozzáadása.
+- A futó művelet gombja a befejezésig letiltva marad, így egy kattintással nem indítható el kétszer.
+- A jelzés `aria-busy` és `aria-live` attribútumokkal képernyőolvasóval is követhető, és tiszteletben tartja a csökkentett mozgás (`prefers-reduced-motion`) beállítást.
+
 ### 0.2
 - **Javítva:** a REST hívások sima (nem „szép”) permalink-beállítás mellett elromlottak. A REST gyökér ilyenkor maga is lekérdezés-paraméter (`?rest_route=…`), így a hozzáfűzött paraméterek egy második `?`-et eredményeztek, és az útvonal érvénytelen lett. Emiatt az új menü létrejött ugyan az adatbázisban, de a lista sosem töltődött be, így nem jelent meg. A felület mostantól a `wp.apiFetch`-et használja, ami mindkét URL-formát kezeli.
 - Az **Új menü** létrehozása a felületbe épített beviteli mezővel történik, felugró böngészőablak helyett (Enter is elküldi, Esc bezárja).

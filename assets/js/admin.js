@@ -209,6 +209,113 @@
 		toast( message, 'error' );
 	}
 
+	/**
+	 * Folyamatjelző sáv a felület tetején.
+	 */
+	function showPending( message ) {
+		if ( ! root ) {
+			return;
+		}
+
+		var existing = document.getElementById( 'amm-pending' );
+		var banner = h( 'div', { id: 'amm-pending', class: 'amm-alert amm-alert--info', role: 'status', 'aria-live': 'polite' },
+			h( 'span', { class: 'amm-alert__body' },
+				h( 'span', { class: 'amm-alert__spinner', 'aria-hidden': 'true' } ),
+				h( 'span', { text: message } )
+			)
+		);
+
+		if ( existing ) {
+			existing.parentNode.replaceChild( banner, existing );
+		} else {
+			root.insertBefore( banner, root.firstChild );
+		}
+	}
+
+	function hidePending() {
+		var existing = document.getElementById( 'amm-pending' );
+
+		if ( existing ) {
+			existing.remove();
+		}
+	}
+
+	/**
+	 * Gomb "dolgozik" állapotba tétele: pörgő ikon, felirat, letiltás.
+	 *
+	 * A gomb eredeti tartalmát csomópontonként őrizzük meg, így a
+	 * visszaállítás nem jár HTML újraértelmezéssel.
+	 *
+	 * @return {Function} A visszaállító függvény.
+	 */
+	function setButtonBusy( button, label ) {
+		if ( ! button ) {
+			return function () {};
+		}
+
+		var saved = Array.prototype.slice.call( button.childNodes );
+		var wasDisabled = button.disabled;
+		var width = button.offsetWidth;
+
+		button.disabled = true;
+		button.classList.add( 'is-busy' );
+		button.setAttribute( 'aria-busy', 'true' );
+
+		// A gomb ne ugráljon, amíg a felirat cserélődik.
+		if ( width ) {
+			button.style.minWidth = width + 'px';
+		}
+
+		clear( button );
+		button.appendChild( h( 'span', { class: 'amm-btn__spinner', 'aria-hidden': 'true' } ) );
+		button.appendChild( document.createTextNode( label ) );
+
+		return function restore() {
+			button.disabled = wasDisabled;
+			button.classList.remove( 'is-busy' );
+			button.removeAttribute( 'aria-busy' );
+			button.style.minWidth = '';
+			clear( button );
+
+			saved.forEach( function ( node ) {
+				button.appendChild( node );
+			} );
+		};
+	}
+
+	/**
+	 * Hosszú művelet futtatása látható visszajelzéssel.
+	 *
+	 * @param {Element}  button  A megnyomott gomb (lehet null).
+	 * @param {string}   label   Felirat futás közben.
+	 * @param {Function} factory A műveletet indító függvény, ami ígéretet ad vissza.
+	 * @return {Promise}
+	 */
+	function runTask( button, label, factory ) {
+		var restore = setButtonBusy( button, label );
+
+		state.busy = true;
+		state.error = '';
+		showPending( label );
+
+		function done() {
+			state.busy = false;
+			restore();
+			hidePending();
+		}
+
+		return factory().then( function ( result ) {
+			done();
+
+			return result;
+		}, function ( error ) {
+			done();
+			fail( error );
+
+			throw error;
+		} );
+	}
+
 	function debounce( fn, wait ) {
 		var timer = null;
 
@@ -1247,10 +1354,14 @@
 						type: 'button',
 						disabled: ! selectedCount,
 						text: T.addSelected + ( selectedCount ? ' (' + selectedCount + ')' : '' ),
-						onClick: function () {
-							addObjects( Object.keys( picker.selected ).map( function ( key ) {
+						onClick: function ( event ) {
+							var objects = Object.keys( picker.selected ).map( function ( key ) {
 								return picker.selected[ key ];
-							} ) );
+							} );
+
+							runTask( event.currentTarget, 'Hozzáadás…', function () {
+								return addObjects( objects );
+							} ).catch( function () {} );
 						}
 					} )
 				)
@@ -1748,12 +1859,26 @@
 				h( 'p', { text: D.pageCount + ' oldal az indexben' + ( D.indexed ? '' : ' (közvetlen mód)' ) } )
 			),
 			h( 'div', { class: 'amm-header__actions' },
-				h( 'button', { class: 'amm-btn', type: 'button', text: 'WordPress menük átemelése', onClick: importCore } ),
-				h( 'button', { class: 'amm-btn', type: 'button', text: 'Gyorsítótár ürítése', onClick: function () {
-					api( '/tools/flush', { method: 'POST' } ).then( function ( data ) {
-						toast( data.message, 'success' );
-					} ).catch( fail );
-				} } ),
+				h( 'button', {
+					class: 'amm-btn',
+					type: 'button',
+					text: 'WordPress menük átemelése',
+					onClick: function ( event ) {
+						importCore( event.currentTarget );
+					}
+				} ),
+				h( 'button', {
+					class: 'amm-btn',
+					type: 'button',
+					text: 'Gyorsítótár ürítése',
+					onClick: function ( event ) {
+						runTask( event.currentTarget, 'Ürítés…', function () {
+							return api( '/tools/flush', { method: 'POST' } );
+						} ).then( function ( data ) {
+							toast( data.message, 'success' );
+						} ).catch( function () {} );
+					}
+				} ),
 				h( 'a', { class: 'amm-btn', href: D.adminUrl.replace( 'page=and-menumanager', 'page=and-menumanager-settings' ), text: T.settings } ),
 				h( 'button', { class: 'amm-btn amm-btn--primary', type: 'button', text: T.newMenu, onClick: openCreateForm } )
 			)
@@ -1784,16 +1909,25 @@
 		}
 	}
 
-	function importCore() {
+	function importCore( button ) {
 		if ( ! confirmDialog( 'A beépített WordPress menük másolatként bekerülnek a menükezelőbe. Folytatod?' ) ) {
 			return;
 		}
 
-		api( '/tools/import-core', { method: 'POST' } ).then( function ( data ) {
-			toast( data.count + ' menü átemelve.', 'success' );
+		var count = 0;
 
-			return loadMenus();
-		} ).then( renderMenusView ).catch( fail );
+		runTask( button, 'Átemelés folyamatban…', function () {
+			return api( '/tools/import-core', { method: 'POST' } ).then( function ( data ) {
+				count = data.count;
+
+				return loadMenus();
+			} );
+		} ).then( function () {
+			renderMenusView();
+			toast( count + ' menü átemelve.', 'success' );
+		} ).catch( function () {
+			renderMenusView();
+		} );
 	}
 
 	/* ---------------------------------------------------------------
@@ -2078,21 +2212,31 @@
 		/* Eszközök */
 		var tools = h( 'div', { class: 'amm-panel__body' } );
 
-		function toolButton( label, action, hint ) {
+		function toolButton( label, action, busyLabel, hint ) {
 			tools.appendChild(
 				h( 'div', { style: 'margin-bottom:10px' },
 					h( 'button', {
 						class: 'amm-btn',
 						type: 'button',
 						text: label,
-						onClick: function () {
-							api( '/tools/' + action, { method: 'POST' } ).then( function ( data ) {
-								toast( data.message || T.saved, 'success' );
+						onClick: function ( event ) {
+							var message = '';
+
+							runTask( event.currentTarget, busyLabel, function () {
+								return api( '/tools/' + action, { method: 'POST' } ).then( function ( data ) {
+									message = data.message || T.saved;
+
+									if ( 'import-core' === action ) {
+										return loadMenus();
+									}
+								} );
+							} ).then( function () {
+								toast( message, 'success' );
 
 								if ( 'import-core' === action ) {
-									loadMenus();
+									renderSettingsView();
 								}
-							} ).catch( fail );
+							} ).catch( function () {} );
 						}
 					} ),
 					hint ? h( 'span', { class: 'amm-field__hint', text: hint } ) : null
@@ -2100,10 +2244,10 @@
 			);
 		}
 
-		toolButton( 'Gyorsítótár ürítése', 'flush', 'Minden menü újraépül a következő megjelenítéskor.' );
-		toolButton( 'Oldalindex előmelegítése', 'prewarm', 'Az index felépül, így az első látogató sem vár rá.' );
-		toolButton( 'Árva menüelemek törlése', 'orphans', 'A már nem létező oldalakra mutató elemek eltávolítása.' );
-		toolButton( 'WordPress menük átemelése', 'import-core', 'A beépített menük másolatként bekerülnek.' );
+		toolButton( 'Gyorsítótár ürítése', 'flush', 'Ürítés…', 'Minden menü újraépül a következő megjelenítéskor.' );
+		toolButton( 'Oldalindex előmelegítése', 'prewarm', 'Index építése…', 'Az index felépül, így az első látogató sem vár rá.' );
+		toolButton( 'Árva menüelemek törlése', 'orphans', 'Takarítás…', 'A már nem létező oldalakra mutató elemek eltávolítása.' );
+		toolButton( 'WordPress menük átemelése', 'import-core', 'Átemelés folyamatban…', 'A beépített menük másolatként bekerülnek.' );
 
 		tools.appendChild(
 			h( 'div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:12px' },
