@@ -610,6 +610,109 @@
 		return ( state.menu.settings.excluded || [] ).indexOf( objectId ) !== -1;
 	}
 
+	/* ---------------------------------------------------------------
+	 * Megerősítő buborék
+	 * ------------------------------------------------------------ */
+
+	function onBubbleOutside( event ) {
+		var bubble = document.querySelector( '.amm-bubble' );
+
+		if ( bubble && ! bubble.contains( event.target ) ) {
+			closeBubble();
+		}
+	}
+
+	function onBubbleKey( event ) {
+		if ( 'Escape' === event.key ) {
+			closeBubble();
+		}
+	}
+
+	function closeBubble() {
+		var bubble = document.querySelector( '.amm-bubble' );
+
+		if ( bubble ) {
+			bubble.remove();
+		}
+
+		document.removeEventListener( 'click', onBubbleOutside, true );
+		document.removeEventListener( 'keydown', onBubbleKey, true );
+	}
+
+	/**
+	 * Megerősítést kérő buborék az űrlap mellett.
+	 *
+	 * Ha nincs hova kitenni, visszaesik a böngésző megerősítő ablakára.
+	 */
+	function showBubble( anchor, options ) {
+		closeBubble();
+
+		if ( ! anchor ) {
+			if ( confirmDialog( options.message ) ) {
+				options.onConfirm();
+			}
+
+			return;
+		}
+
+		var bubble = h( 'div', { class: 'amm-bubble', role: 'alertdialog', 'aria-live': 'assertive' },
+			h( 'p', { class: 'amm-bubble__text', text: options.message } ),
+			options.hint ? h( 'p', { class: 'amm-bubble__hint', text: options.hint } ) : null,
+			h( 'div', { class: 'amm-bubble__actions' },
+				h( 'button', {
+					class: 'amm-btn amm-btn--sm amm-btn--primary',
+					type: 'button',
+					text: options.confirmLabel,
+					onClick: function () {
+						closeBubble();
+						options.onConfirm();
+					}
+				} ),
+				h( 'button', {
+					class: 'amm-btn amm-btn--sm',
+					type: 'button',
+					text: 'Mégse',
+					onClick: function () {
+						closeBubble();
+
+						if ( options.onCancel ) {
+							options.onCancel();
+						}
+					}
+				} )
+			)
+		);
+
+		anchor.appendChild( bubble );
+
+		window.setTimeout( function () {
+			document.addEventListener( 'click', onBubbleOutside, true );
+			document.addEventListener( 'keydown', onBubbleKey, true );
+
+			var primary = bubble.querySelector( '.amm-btn--primary' );
+
+			if ( primary ) {
+				primary.focus();
+			}
+		}, 0 );
+	}
+
+	/**
+	 * Van-e már pontosan ilyen nevű menü?
+	 *
+	 * A keresés a szerveren fut, így a helyi (szűrt vagy lapozott) lista
+	 * állapotától függetlenül megbízható.
+	 */
+	function findDuplicateMenus( name ) {
+		var needle = name.trim().toLowerCase();
+
+		return api( '/menus' + query( { search: name, per_page: 100 } ) ).then( function ( data ) {
+			return ( data.items || [] ).filter( function ( menu ) {
+				return String( menu.name ).trim().toLowerCase() === needle;
+			} );
+		} );
+	}
+
 	function focusNewMenuInput() {
 		window.setTimeout( function () {
 			var input = document.getElementById( 'amm-new-menu-name' );
@@ -627,16 +730,7 @@
 		focusNewMenuInput();
 	}
 
-	function createMenu( name ) {
-		name = ( name || '' ).trim();
-
-		if ( ! name ) {
-			showError( 'Adj nevet az új menünek.' );
-			focusNewMenuInput();
-
-			return Promise.resolve();
-		}
-
+	function performCreate( name, options ) {
 		state.busy = true;
 
 		return api( '/menus', { method: 'POST', body: { name: name } } ).then( function ( menu ) {
@@ -646,6 +740,10 @@
 			state.error = '';
 
 			return loadMenus().then( function () {
+				if ( options.onCreated ) {
+					return options.onCreated( menu );
+				}
+
 				return selectMenu( menu.id );
 			} ).then( function () {
 				toast( 'A(z) „' + menu.name + '” menü létrejött.', 'success' );
@@ -653,6 +751,58 @@
 		} ).catch( function ( error ) {
 			state.busy = false;
 			fail( error );
+		} );
+	}
+
+	/**
+	 * Menü létrehozása, azonos névre figyelmeztetéssel.
+	 *
+	 * @param {string} name    A menü neve.
+	 * @param {Object} options anchor: hova kerüljön a buborék,
+	 *                         force: átlépi az ellenőrzést,
+	 *                         onCreated: mi történjen létrehozás után.
+	 */
+	function createMenu( name, options ) {
+		options = options || {};
+		name = ( name || '' ).trim();
+		closeBubble();
+
+		if ( ! name ) {
+			showError( 'Adj nevet az új menünek.' );
+			focusNewMenuInput();
+
+			return Promise.resolve();
+		}
+
+		if ( options.force ) {
+			return performCreate( name, options );
+		}
+
+		return findDuplicateMenus( name ).then( function ( matches ) {
+			if ( ! matches.length ) {
+				return performCreate( name, options );
+			}
+
+			var message = 1 === matches.length ?
+				'Ezen a néven már van egy menü („' + matches[ 0 ].name + '”). Szeretnél létrehozni még egyet ugyanezen a néven?' :
+				'Ezen a néven már van ' + matches.length + ' menü. Szeretnél létrehozni még egyet ugyanezen a néven?';
+
+			showBubble( options.anchor, {
+				message: message,
+				hint: 'A hivatkozási azonosító (slug) automatikusan egyedi lesz, hogy a shortcode a megfelelő menüre mutasson.',
+				confirmLabel: 'Igen, létrehozom',
+				onConfirm: function () {
+					createMenu( name, {
+						force: true,
+						anchor: options.anchor,
+						onCreated: options.onCreated
+					} );
+				},
+				onCancel: focusNewMenuInput
+			} );
+		} ).catch( function () {
+			// Az ellenőrzés csak segítség: ha nem fut le, ne álljon meg a munka.
+			return performCreate( name, options );
 		} );
 	}
 
@@ -889,11 +1039,13 @@
 			);
 		} );
 
-		var createForm = state.creating ? h( 'form', {
+		var createForm = null;
+
+		createForm = state.creating ? h( 'form', {
 			class: 'amm-createform',
 			onSubmit: function ( event ) {
 				event.preventDefault();
-				createMenu( state.newMenuName );
+				createMenu( state.newMenuName, { anchor: createForm } );
 			}
 		},
 			h( 'label', { class: 'amm-field__label', for: 'amm-new-menu-name', text: 'Az új menü neve' } ),
@@ -1910,21 +2062,21 @@
 	}
 
 	function importCore( button ) {
-		if ( ! confirmDialog( 'A beépített WordPress menük másolatként bekerülnek a menükezelőbe. Folytatod?' ) ) {
+		if ( ! confirmDialog( 'A beépített WordPress menük átemelése és újraellenőrzése következik. A már átemelt menük nem duplikálódnak: csak a hiányzó menüpontok pótlódnak. Folytatod?' ) ) {
 			return;
 		}
 
-		var count = 0;
+		var message = '';
 
 		runTask( button, 'Átemelés folyamatban…', function () {
 			return api( '/tools/import-core', { method: 'POST' } ).then( function ( data ) {
-				count = data.count;
+				message = data.message || T.saved;
 
 				return loadMenus();
 			} );
 		} ).then( function () {
 			renderMenusView();
-			toast( count + ' menü átemelve.', 'success' );
+			toast( message, 'success' );
 		} ).catch( function () {
 			renderMenusView();
 		} );
@@ -1957,40 +2109,33 @@
 		var createBody = h( 'div', { class: 'amm-panel__body' } );
 		var createName = '';
 
-		createBody.appendChild(
-			h( 'form', {
-				onSubmit: function ( event ) {
-					event.preventDefault();
-					createName = ( createName || '' ).trim();
+		var createForm = null;
 
-					if ( ! createName ) {
-						showError( 'Adj nevet az új menünek.' );
-
-						return;
+		createForm = h( 'form', {
+			class: 'amm-createform amm-createform--plain',
+			onSubmit: function ( event ) {
+				event.preventDefault();
+				createMenu( createName, {
+					anchor: createForm,
+					onCreated: function () {
+						renderSettingsView();
 					}
-
-					api( '/menus', { method: 'POST', body: { name: createName } } ).then( function ( menu ) {
-						state.error = '';
-
-						return loadMenus().then( function () {
-							renderSettingsView();
-							toast( 'A(z) „' + menu.name + '” menü létrejött.', 'success' );
-						} );
-					} ).catch( fail );
+				} );
+			}
+		},
+			field( 'Az új menü neve', h( 'input', {
+				class: 'amm-input',
+				type: 'text',
+				autocomplete: 'off',
+				placeholder: 'pl. Főmenü',
+				onInput: function ( event ) {
+					createName = event.target.value;
 				}
-			},
-				field( 'Az új menü neve', h( 'input', {
-					class: 'amm-input',
-					type: 'text',
-					autocomplete: 'off',
-					placeholder: 'pl. Főmenü',
-					onInput: function ( event ) {
-						createName = event.target.value;
-					}
-				} ) ),
-				h( 'button', { class: 'amm-btn amm-btn--primary', type: 'submit', text: 'Menü létrehozása' } )
-			)
+			} ) ),
+			h( 'button', { class: 'amm-btn amm-btn--primary', type: 'submit', text: 'Menü létrehozása' } )
 		);
+
+		createBody.appendChild( createForm );
 
 		if ( state.menus.length ) {
 			var existing = h( 'ul', { style: 'margin:14px 0 0;padding-left:18px' } );
@@ -2247,7 +2392,7 @@
 		toolButton( 'Gyorsítótár ürítése', 'flush', 'Ürítés…', 'Minden menü újraépül a következő megjelenítéskor.' );
 		toolButton( 'Oldalindex előmelegítése', 'prewarm', 'Index építése…', 'Az index felépül, így az első látogató sem vár rá.' );
 		toolButton( 'Árva menüelemek törlése', 'orphans', 'Takarítás…', 'A már nem létező oldalakra mutató elemek eltávolítása.' );
-		toolButton( 'WordPress menük átemelése', 'import-core', 'Átemelés folyamatban…', 'A beépített menük másolatként bekerülnek.' );
+		toolButton( 'WordPress menük átemelése', 'import-core', 'Átemelés folyamatban…', 'Újrafuttatható: a már átemelt menüket nem duplikálja, csak a hiányzó menüpontokat pótolja.' );
 
 		tools.appendChild(
 			h( 'div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:12px' },

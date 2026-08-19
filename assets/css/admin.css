@@ -821,9 +821,16 @@
 
 /* --- Menü létrehozó űrlap --- */
 .amm-createform {
+	position: relative;
 	margin-top: 10px;
 	padding-top: 10px;
 	border-top: 1px solid var(--amm-border);
+}
+
+.amm-createform--plain {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: 0;
 }
 
 .amm-createform .amm-field__label {
@@ -885,5 +892,68 @@
 		animation: none;
 		border-top-color: currentColor;
 		border-right-color: transparent;
+	}
+}
+
+/* --- Megerősítő buborék --- */
+.amm-bubble {
+	position: absolute;
+	top: calc(100% + 10px);
+	left: 0;
+	right: 0;
+	z-index: 60;
+	padding: 12px 14px;
+	border: 1px solid var(--amm-border-strong);
+	border-radius: var(--amm-radius);
+	background: var(--amm-bg);
+	box-shadow: 0 10px 28px rgba(16, 24, 40, .16);
+	animation: amm-bubble-in .14s ease;
+}
+
+.amm-bubble::before,
+.amm-bubble::after {
+	content: "";
+	position: absolute;
+	bottom: 100%;
+	left: 22px;
+	border: 7px solid transparent;
+}
+
+.amm-bubble::before {
+	border-bottom-color: var(--amm-border-strong);
+}
+
+.amm-bubble::after {
+	margin-bottom: -1px;
+	border-bottom-color: var(--amm-bg);
+}
+
+.amm-bubble__text {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.amm-bubble__hint {
+	margin: 6px 0 0;
+	color: var(--amm-text-soft);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.amm-bubble__actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 12px;
+}
+
+@keyframes amm-bubble-in {
+	from { opacity: 0; transform: translateY(-4px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.amm-bubble {
+		animation: none;
 	}
 }
