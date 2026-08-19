@@ -265,7 +265,13 @@ class AMM_Menu_Repository {
 		);
 
 		if ( false === $result ) {
-			return new WP_Error( 'amm_insert_failed', __( 'A menü mentése nem sikerült.', 'and-menumanager' ), array( 'status' => 500 ) );
+			$detail = $wpdb->last_error ? ' (' . $wpdb->last_error . ')' : '';
+
+			return new WP_Error(
+				'amm_insert_failed',
+				__( 'A menü mentése nem sikerült.', 'and-menumanager' ) . $detail,
+				array( 'status' => 500 )
+			);
 		}
 
 		AMM_Cache::flush();

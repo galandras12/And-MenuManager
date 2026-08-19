@@ -90,10 +90,41 @@
 		return parts.length ? '?' + parts.join( '&' ) : '';
 	}
 
+	/**
+	 * REST URL összeállítása.
+	 *
+	 * Sima (nem "szép") permalinkeknél a REST gyökér maga is
+	 * lekérdezés-paraméter (?rest_route=...), ezért a további
+	 * paramétereket nem lehet egyszerűen hozzáfűzni – egy második "?"
+	 * elrontaná az útvonalat.
+	 */
+	function buildUrl( path ) {
+		var root = D.root || '';
+
+		if ( root.indexOf( '?' ) === -1 ) {
+			return root + path;
+		}
+
+		var split = path.split( '?' );
+
+		return root + encodeURIComponent( split[ 0 ] ) + ( split[ 1 ] ? '&' + split[ 1 ] : '' );
+	}
+
 	function api( path, options ) {
 		options = options || {};
 
-		return fetch( D.root + path, {
+		var namespace = D.namespace || 'and-menumanager/v1';
+
+		// A wp.apiFetch ismeri mindkét REST URL-formát és a nonce-ot is kezeli.
+		if ( window.wp && window.wp.apiFetch ) {
+			return window.wp.apiFetch( {
+				path: '/' + namespace + path,
+				method: options.method || 'GET',
+				data: options.body
+			} );
+		}
+
+		return fetch( buildUrl( path ), {
 			method: options.method || 'GET',
 			credentials: 'same-origin',
 			headers: {
@@ -102,18 +133,20 @@
 			},
 			body: options.body ? JSON.stringify( options.body ) : undefined
 		} ).then( function ( response ) {
-			return response.json().then( function ( data ) {
+			return response.text().then( function ( text ) {
+				var data = null;
+
+				try {
+					data = text ? JSON.parse( text ) : null;
+				} catch ( error ) {
+					throw new Error( 'A szerver nem érvényes választ adott: ' + text.slice( 0, 200 ) );
+				}
+
 				if ( ! response.ok ) {
-					throw new Error( ( data && data.message ) || T.error || 'Error' );
+					throw new Error( ( data && data.message ) || ( T.error + ' (HTTP ' + response.status + ')' ) );
 				}
 
 				return data;
-			} ).catch( function ( error ) {
-				if ( ! response.ok ) {
-					throw error;
-				}
-
-				throw error;
 			} );
 		} );
 	}
@@ -136,8 +169,44 @@
 		}, 3200 );
 	}
 
+	/**
+	 * Tartós hibasáv. A rövid ideig látszó "toast" mellett a hiba a
+	 * felület tetején is megmarad, amíg be nem zárják.
+	 */
+	function showError( message ) {
+		if ( ! root ) {
+			return;
+		}
+
+		state.error = message;
+
+		var existing = document.getElementById( 'amm-error' );
+		var banner = h( 'div', { id: 'amm-error', class: 'amm-alert amm-alert--error' },
+			h( 'span', { text: message } ),
+			h( 'button', {
+				class: 'amm-btn amm-btn--sm amm-btn--ghost',
+				type: 'button',
+				text: '✕',
+				'aria-label': 'Bezárás',
+				onClick: function () {
+					state.error = '';
+					banner.remove();
+				}
+			} )
+		);
+
+		if ( existing ) {
+			existing.parentNode.replaceChild( banner, existing );
+		} else {
+			root.insertBefore( banner, root.firstChild );
+		}
+	}
+
 	function fail( error ) {
-		toast( error && error.message ? error.message : T.error, 'error' );
+		var message = error && error.message ? error.message : T.error;
+
+		showError( message );
+		toast( message, 'error' );
 	}
 
 	function debounce( fn, wait ) {
@@ -188,7 +257,10 @@
 		locations: [],
 		roles: null,
 		health: null,
-		busy: false
+		busy: false,
+		creating: false,
+		newMenuName: '',
+		error: ''
 	};
 
 	var root = document.getElementById( 'amm-app' );
@@ -431,18 +503,50 @@
 		return ( state.menu.settings.excluded || [] ).indexOf( objectId ) !== -1;
 	}
 
-	function createMenu() {
-		var name = window.prompt( T.newMenu, '' ); // eslint-disable-line no-alert
+	function focusNewMenuInput() {
+		window.setTimeout( function () {
+			var input = document.getElementById( 'amm-new-menu-name' );
+
+			if ( input ) {
+				input.focus();
+				input.select();
+			}
+		}, 0 );
+	}
+
+	function openCreateForm() {
+		state.creating = true;
+		renderMenusView();
+		focusNewMenuInput();
+	}
+
+	function createMenu( name ) {
+		name = ( name || '' ).trim();
 
 		if ( ! name ) {
-			return;
+			showError( 'Adj nevet az új menünek.' );
+			focusNewMenuInput();
+
+			return Promise.resolve();
 		}
 
-		api( '/menus', { method: 'POST', body: { name: name } } ).then( function ( menu ) {
+		state.busy = true;
+
+		return api( '/menus', { method: 'POST', body: { name: name } } ).then( function ( menu ) {
+			state.busy = false;
+			state.creating = false;
+			state.newMenuName = '';
+			state.error = '';
+
 			return loadMenus().then( function () {
 				return selectMenu( menu.id );
+			} ).then( function () {
+				toast( 'A(z) „' + menu.name + '” menü létrejött.', 'success' );
 			} );
-		} ).catch( fail );
+		} ).catch( function ( error ) {
+			state.busy = false;
+			fail( error );
+		} );
 	}
 
 	function deleteMenu() {
@@ -678,10 +782,57 @@
 			);
 		} );
 
+		var createForm = state.creating ? h( 'form', {
+			class: 'amm-createform',
+			onSubmit: function ( event ) {
+				event.preventDefault();
+				createMenu( state.newMenuName );
+			}
+		},
+			h( 'label', { class: 'amm-field__label', for: 'amm-new-menu-name', text: 'Az új menü neve' } ),
+			h( 'input', {
+				class: 'amm-input',
+				id: 'amm-new-menu-name',
+				type: 'text',
+				autocomplete: 'off',
+				placeholder: 'pl. Főmenü',
+				value: state.newMenuName,
+				onInput: function ( event ) {
+					state.newMenuName = event.target.value;
+				},
+				onKeydown: function ( event ) {
+					if ( 'Escape' === event.key ) {
+						state.creating = false;
+						state.newMenuName = '';
+						renderMenusView();
+					}
+				}
+			} ),
+			h( 'div', { class: 'amm-createform__actions' },
+				h( 'button', { class: 'amm-btn amm-btn--primary amm-btn--sm', type: 'submit', text: 'Létrehozás' } ),
+				h( 'button', {
+					class: 'amm-btn amm-btn--sm',
+					type: 'button',
+					text: 'Mégse',
+					onClick: function () {
+						state.creating = false;
+						state.newMenuName = '';
+						renderMenusView();
+					}
+				} )
+			)
+		) : null;
+
 		return h( 'section', { class: 'amm-panel' },
 			h( 'div', { class: 'amm-panel__head' },
 				h( 'h2', { class: 'amm-panel__title', text: T.menus + ' (' + state.menusTotal + ')' } ),
-				h( 'button', { class: 'amm-btn amm-btn--sm amm-btn--primary', type: 'button', onClick: createMenu, text: '+' } )
+				h( 'button', {
+					class: 'amm-btn amm-btn--sm amm-btn--primary',
+					type: 'button',
+					onClick: openCreateForm,
+					title: T.newMenu,
+					text: '+'
+				} )
 			),
 			h( 'div', { class: 'amm-panel__body' },
 				h( 'input', {
@@ -699,7 +850,8 @@
 							}
 						} );
 					}, 220 )
-				} )
+				} ),
+				createForm
 			),
 			list
 		);
@@ -1603,7 +1755,7 @@
 					} ).catch( fail );
 				} } ),
 				h( 'a', { class: 'amm-btn', href: D.adminUrl.replace( 'page=and-menumanager', 'page=and-menumanager-settings' ), text: T.settings } ),
-				h( 'button', { class: 'amm-btn amm-btn--primary', type: 'button', text: T.newMenu, onClick: createMenu } )
+				h( 'button', { class: 'amm-btn amm-btn--primary', type: 'button', text: T.newMenu, onClick: openCreateForm } )
 			)
 		);
 
@@ -1626,6 +1778,10 @@
 		}
 
 		root.appendChild( layout );
+
+		if ( state.error ) {
+			showError( state.error );
+		}
 	}
 
 	function importCore() {
@@ -1662,6 +1818,63 @@
 		var cards = h( 'div', { class: 'amm-cards' } );
 		var settings = state.settings || {};
 		var draft = {};
+
+		/* Menü létrehozása – ugyanaz a művelet, mint a Menük oldalon. */
+		var createBody = h( 'div', { class: 'amm-panel__body' } );
+		var createName = '';
+
+		createBody.appendChild(
+			h( 'form', {
+				onSubmit: function ( event ) {
+					event.preventDefault();
+					createName = ( createName || '' ).trim();
+
+					if ( ! createName ) {
+						showError( 'Adj nevet az új menünek.' );
+
+						return;
+					}
+
+					api( '/menus', { method: 'POST', body: { name: createName } } ).then( function ( menu ) {
+						state.error = '';
+
+						return loadMenus().then( function () {
+							renderSettingsView();
+							toast( 'A(z) „' + menu.name + '” menü létrejött.', 'success' );
+						} );
+					} ).catch( fail );
+				}
+			},
+				field( 'Az új menü neve', h( 'input', {
+					class: 'amm-input',
+					type: 'text',
+					autocomplete: 'off',
+					placeholder: 'pl. Főmenü',
+					onInput: function ( event ) {
+						createName = event.target.value;
+					}
+				} ) ),
+				h( 'button', { class: 'amm-btn amm-btn--primary', type: 'submit', text: 'Menü létrehozása' } )
+			)
+		);
+
+		if ( state.menus.length ) {
+			var existing = h( 'ul', { style: 'margin:14px 0 0;padding-left:18px' } );
+
+			state.menus.slice( 0, 12 ).forEach( function ( menu ) {
+				existing.appendChild( h( 'li', {},
+					h( 'a', { href: D.adminUrl, text: menu.name } ),
+					h( 'span', { class: 'amm-field__hint', style: 'display:inline;margin-left:6px', text: '(' + ( menu.item_count || 0 ) + ' ' + T.items + ')' } )
+				) );
+			} );
+
+			createBody.appendChild( existing );
+		}
+
+		cards.appendChild( h( 'section', { class: 'amm-panel' },
+			h( 'div', { class: 'amm-panel__head' }, h( 'h2', { class: 'amm-panel__title', text: T.menus } ) ),
+			createBody
+		) );
 
 		/* Általános */
 		var general = h( 'div', { class: 'amm-panel__body' } );
@@ -1971,6 +2184,20 @@
 				healthBody.appendChild( missing );
 			}
 
+			if ( state.health.database ) {
+				var db = state.health.database;
+
+				healthBody.appendChild( h( 'p', {
+					class: 'amm-field__hint',
+					text: 'Adatbázis: ' + ( db.tables_ok ? 'a táblák rendben' : 'HIÁNYZÓ TÁBLÁK – nyisd meg újra a Menük oldalt a javításhoz' ) +
+						' · séma v' + db.db_version + ' · plugin v' + db.version
+				} ) );
+
+				if ( db.last_error ) {
+					healthBody.appendChild( h( 'p', { class: 'amm-field__hint', text: 'Utolsó adatbázis-hiba: ' + db.last_error } ) );
+				}
+			}
+
 			if ( report.empty_menus.length ) {
 				healthBody.appendChild( h( 'p', { class: 'amm-field__hint', text: 'Üres menük: ' + report.empty_menus.map( function ( menu ) {
 					return menu.name;
@@ -1984,6 +2211,10 @@
 		) );
 
 		root.appendChild( cards );
+
+		if ( state.error ) {
+			showError( state.error );
+		}
 	}
 
 	function loadSettings() {

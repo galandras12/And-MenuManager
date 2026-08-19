@@ -68,12 +68,63 @@ class AMM_Installer {
 	}
 
 	/**
+	 * Léteznek-e a saját táblák?
+	 *
+	 * @return bool
+	 */
+	public static function tables_exist() {
+		global $wpdb;
+
+		foreach ( array( self::menus_table(), self::items_table() ) as $table ) {
+			// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+			// phpcs:enable
+
+			if ( $found !== $table ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Önjavító ellenőrzés: ha a táblák hiányoznak, újra létrehozzuk.
+	 *
+	 * Ez arra az esetre kell, amikor az aktiválás félbemaradt (pl. a
+	 * verziószám már elmentődött, de a táblák nem jöttek létre) – enélkül
+	 * a plugin némán, javíthatatlanul hibás állapotban maradna.
+	 *
+	 * @param bool $force Kihagyja-e az óránkénti korlátozást.
+	 * @return bool Rendben vannak-e a táblák.
+	 */
+	public static function verify_tables( $force = false ) {
+		$last = (int) get_option( 'amm_tables_checked', 0 );
+
+		if ( ! $force && $last && ( time() - $last ) < HOUR_IN_SECONDS ) {
+			return true;
+		}
+
+		update_option( 'amm_tables_checked', time(), false );
+
+		if ( self::tables_exist() ) {
+			return true;
+		}
+
+		self::create_tables();
+
+		return self::tables_exist();
+	}
+
+	/**
 	 * Séma frissítés futás közben (pl. ha a plugint fájlból frissítették).
 	 *
 	 * @return void
 	 */
 	public static function maybe_upgrade() {
 		if ( get_option( 'amm_db_version' ) === AMM_DB_VERSION ) {
+			self::verify_tables();
+
 			return;
 		}
 
@@ -164,6 +215,8 @@ class AMM_Installer {
 		delete_option( 'amm_db_version' );
 		delete_option( 'amm_version' );
 		delete_option( 'amm_cache_version' );
+		delete_option( 'amm_tables_checked' );
+		delete_option( 'amm_health_report' );
 
 		AMM_Capabilities::remove_all_caps();
 		wp_clear_scheduled_hook( 'amm_daily_maintenance' );
